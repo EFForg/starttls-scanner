@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/EFForg/starttls-scanner/db"
+	"github.com/gorilla/handlers"
 )
 
 func validPort(port string) (string, error) {
@@ -26,7 +28,8 @@ func ServePublicEndpoints(api *API, cfg *db.Config) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Fatal(http.ListenAndServe(portString, mux))
+	requestLogger := handlers.LoggingHandler(os.Stdout, mux)
+	log.Fatal(http.ListenAndServe(portString, requestLogger))
 }
 
 func main() {
