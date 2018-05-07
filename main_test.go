@@ -67,7 +67,13 @@ func TestPanicRecovery(t *testing.T) {
 	mux.HandleFunc("/panic", panickingHandler)
 	server := httptest.NewServer(registerHandlers(api, mux))
 	defer server.Close()
-	http.Get(fmt.Sprintf("%s/panic", server.URL))
+	resp, err := http.Get(fmt.Sprintf("%s/panic", server.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 500 {
+		t.Errorf("Expected server to respond with 500")
+	}
 }
 
 func panickingHandler(w http.ResponseWriter, r *http.Request) {
