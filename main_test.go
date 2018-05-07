@@ -67,7 +67,11 @@ func TestPanicRecovery(t *testing.T) {
 	mux.HandleFunc("/panic", panickingHandler)
 	server := httptest.NewServer(registerHandlers(api, mux))
 	defer server.Close()
+
+	log.SetOutput(ioutil.Discard)
 	resp, err := http.Get(fmt.Sprintf("%s/panic", server.URL))
+	log.SetOutput(os.Stderr)
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,9 +81,7 @@ func TestPanicRecovery(t *testing.T) {
 }
 
 func panickingHandler(w http.ResponseWriter, r *http.Request) {
-	log.SetOutput(ioutil.Discard)
 	panic("Something went wrong")
-	log.SetOutput(os.Stdout)
 }
 
 // Helper function to mock a request to the server via https.
