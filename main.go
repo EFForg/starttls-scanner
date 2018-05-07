@@ -18,18 +18,25 @@ func validPort(port string) (string, error) {
 	return fmt.Sprintf(":%s", port), nil
 }
 
-// ServePublicEndpoints serves all public HTTP endpoints.
-func ServePublicEndpoints(api *API, cfg *db.Config) {
-	mux := http.NewServeMux()
+func registerHandlers(api *API, mux *http.ServeMux) http.Handler {
 	mux.HandleFunc("/api/scan", api.Scan)
 	mux.HandleFunc("/api/queue", api.Queue)
 	mux.HandleFunc("/api/validate", api.Validate)
+
+	return handlers.RecoveryHandler()(
+		handlers.LoggingHandler(os.Stdout, mux),
+	)
+}
+
+// ServePublicEndpoints serves all public HTTP endpoints.
+func ServePublicEndpoints(api *API, cfg *db.Config) {
+	mux := http.NewServeMux()
+	mainHandler := registerHandlers(api, mux)
 	portString, err := validPort(cfg.Port)
 	if err != nil {
 		log.Fatal(err)
 	}
-	requestLogger := handlers.LoggingHandler(os.Stdout, mux)
-	log.Fatal(http.ListenAndServe(portString, requestLogger))
+	log.Fatal(http.ListenAndServe(portString, mainHandler))
 }
 
 func main() {
