@@ -22,5 +22,3 @@ services:
           - postgres
         env_file:
           - .env
-        environment:
-          DB_HOST: postgres
