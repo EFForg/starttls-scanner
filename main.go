@@ -9,7 +9,6 @@ import (
 
 	"github.com/EFForg/starttls-scanner/db"
 	"github.com/gorilla/handlers"
-	"github.com/joho/godotenv"
 )
 
 func validPort(port string) (string, error) {
@@ -41,7 +40,6 @@ func ServePublicEndpoints(api *API, cfg *db.Config) {
 }
 
 func main() {
-	godotenv.Load()
 	cfg, err := db.LoadEnvironmentVariables()
 	if err != nil {
 		log.Fatal(err)
