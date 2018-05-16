@@ -94,6 +94,9 @@ func panickingHandler(w http.ResponseWriter, r *http.Request) {
 // Returns http.Response resulting from specified handler.
 func testRequest(method string, path string, data url.Values, handler func(http.ResponseWriter, *http.Request)) *http.Response {
 	req := httptest.NewRequest(method, fmt.Sprintf("http://localhost:8080/%s", path), strings.NewReader(data.Encode()))
+	if data != nil {
+		req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	}
 	w := httptest.NewRecorder()
 	handler(w, req)
 	return w.Result()
