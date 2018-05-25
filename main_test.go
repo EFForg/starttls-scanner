@@ -131,24 +131,12 @@ func TestBasicQueueWorkflow(t *testing.T) {
 		t.Errorf("Expecting JSON content-type!")
 	}
 
-	// 1-T. Check that response body contains a token we can validate
-	tokenBody, _ := ioutil.ReadAll(resp.Body)
-	token := db.TokenData{}
-	err := json.Unmarshal(tokenBody, &APIResponse{Response: &token})
-	if err != nil {
-		t.Errorf("Coudln't unmarshal TokenData from JSON: %v", err)
-		return
-	}
-	if token.Domain != "eff.org" {
-		t.Errorf("Token JSON expected to have Domain: eff.org, not %s\n", token.Domain)
-	}
-
 	// 2. Request queue status
 	resp = testRequest("GET", "/api/queue?domain=eff.org", nil, api.Queue)
 	// 2-T. Check to see domain status was initialized to 'unvalidated'
 	domainBody, _ := ioutil.ReadAll(resp.Body)
 	domainData := db.DomainData{}
-	err = json.Unmarshal(domainBody, &APIResponse{Response: &domainData})
+	err := json.Unmarshal(domainBody, &APIResponse{Response: &domainData})
 	if err != nil {
 		t.Errorf("Returned invalid JSON object:%v\n", string(domainBody))
 		return
@@ -163,8 +151,13 @@ func TestBasicQueueWorkflow(t *testing.T) {
 	}
 
 	// 3. Validate domain token
+	token, err := api.Database.GetTokenByDomain("eff.org")
+	if err != nil {
+		t.Errorf("Token for eff.org not found in database")
+		return
+	}
 	data = url.Values{}
-	data.Set("token", token.Token)
+	data.Set("token", token)
 	resp = testRequest("POST", "/api/validate", data, api.Validate)
 	// 3-T. Ensure response body contains domain name
 	domainBody, _ = ioutil.ReadAll(resp.Body)
