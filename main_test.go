@@ -216,21 +216,21 @@ func TestQueueTwice(t *testing.T) {
 		t.Errorf("POST to api/queue failed with error %d", resp.StatusCode)
 		return
 	}
-	// 2. Extract token from queue.
-	tokenBody, _ := ioutil.ReadAll(resp.Body)
-	tokenData := db.TokenData{}
-	err := json.Unmarshal(tokenBody, &APIResponse{Response: &tokenData})
+
+	// 2. Get token from DB
+	token, err := api.Database.GetTokenByDomain("eff.org")
 	if err != nil {
-		t.Errorf("Couldn't unmarshal JSON into TokenData object: %v", err)
+		t.Errorf("Token for eff.org not found in database")
 		return
 	}
-	token := tokenData.Token
+
 	// 3. Request to be queued again.
 	resp = testRequest("POST", "/api/queue", data, api.Queue)
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("POST to api/queue failed with error %d", resp.StatusCode)
 		return
 	}
+
 	// 4. Old token shouldn't work.
 	data = url.Values{}
 	data.Set("token", token)
