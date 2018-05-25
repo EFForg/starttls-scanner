@@ -48,17 +48,14 @@ func TestMain(m *testing.M) {
 func TestInvalidPort(t *testing.T) {
 	portString, err := validPort("8000")
 	if err != nil {
-		t.Errorf("Should not have errored on valid string: %v", err)
-		return
+		t.Fatalf("Should not have errored on valid string: %v", err)
 	}
 	if portString != ":8000" {
-		t.Errorf("Expected portstring be :8000 instead of %s", portString)
-		return
+		t.Fatalf("Expected portstring be :8000 instead of %s", portString)
 	}
 	portString, err = validPort("80a")
 	if err == nil {
-		t.Errorf("Expected error on invalid port")
-		return
+		t.Fatalf("Expected error on invalid port")
 	}
 }
 
@@ -147,8 +144,7 @@ func TestBasicQueueWorkflow(t *testing.T) {
 	queueDomainPostData := validQueueData()
 	resp := testRequest("POST", "/api/queue", queueDomainPostData, api.Queue)
 	if resp.StatusCode != http.StatusOK {
-		t.Errorf("POST to api/queue failed with error %d", resp.StatusCode)
-		return
+		t.Fatalf("POST to api/queue failed with error %d", resp.StatusCode)
 	}
 	if resp.Header.Get("Content-Type") != "application/json; charset=utf-8" {
 		t.Errorf("Expecting JSON content-type!")
@@ -162,23 +158,19 @@ func TestBasicQueueWorkflow(t *testing.T) {
 	domainData := db.DomainData{}
 	err := json.Unmarshal(domainBody, &APIResponse{Response: &domainData})
 	if err != nil {
-		t.Errorf("Returned invalid JSON object:%v\n", string(domainBody))
-		return
+		t.Fatalf("Returned invalid JSON object:%v\n", string(domainBody))
 	}
 	if domainData.State != "unvalidated" {
-		t.Errorf("Initial state for domains should be 'unvalidated'")
-		return
+		t.Fatalf("Initial state for domains should be 'unvalidated'")
 	}
 	if len(domainData.MXs) != 2 {
-		t.Errorf("Domain should have loaded two hostnames into policy")
-		return
+		t.Fatalf("Domain should have loaded two hostnames into policy")
 	}
 
 	// 3. Validate domain token
 	token, err := api.Database.GetTokenByDomain(queueDomainPostData.Get("domain"))
 	if err != nil {
-		t.Errorf("Token not found in database")
-		return
+		t.Fatalf("Token not found in database")
 	}
 	tokenRequestData := url.Values{}
 	tokenRequestData.Set("token", token)
@@ -188,12 +180,10 @@ func TestBasicQueueWorkflow(t *testing.T) {
 	var responseObj map[string]interface{}
 	err = json.Unmarshal(domainBody, &responseObj)
 	if err != nil {
-		t.Errorf("Returned invalid JSON object:%v\n", string(domainBody))
-		return
+		t.Fatalf("Returned invalid JSON object:%v\n", string(domainBody))
 	}
 	if responseObj["response"] != queueDomainPostData.Get("domain") {
-		t.Errorf("Token was not validated for %s", queueDomainPostData.Get("domain"))
-		return
+		t.Fatalf("Token was not validated for %s", queueDomainPostData.Get("domain"))
 	}
 
 	// 3-T2. Ensure double-validation does not work.
@@ -208,12 +198,10 @@ func TestBasicQueueWorkflow(t *testing.T) {
 	domainBody, _ = ioutil.ReadAll(resp.Body)
 	err = json.Unmarshal(domainBody, &APIResponse{Response: &domainData})
 	if err != nil {
-		t.Errorf("Returned invalid JSON object:%v\n", string(domainBody))
-		return
+		t.Fatalf("Returned invalid JSON object:%v\n", string(domainBody))
 	}
 	if domainData.State != "queued" {
-		t.Errorf("Token validation should have automatically queued domain")
-		return
+		t.Fatalf("Token validation should have automatically queued domain")
 	}
 }
 
@@ -223,8 +211,7 @@ func TestQueueWithoutHostnames(t *testing.T) {
 	data.Set("email", "testing@fake-email.org")
 	resp := testRequest("POST", "/api/queue", data, api.Queue)
 	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("POST to api/queue should have failed with error %d", http.StatusBadRequest)
-		return
+		t.Fatalf("POST to api/queue should have failed with error %d", http.StatusBadRequest)
 	}
 }
 
@@ -233,22 +220,19 @@ func TestQueueTwice(t *testing.T) {
 	requestData := validQueueData()
 	resp := testRequest("POST", "/api/queue", requestData, api.Queue)
 	if resp.StatusCode != http.StatusOK {
-		t.Errorf("POST to api/queue failed with error %d", resp.StatusCode)
-		return
+		t.Fatalf("POST to api/queue failed with error %d", resp.StatusCode)
 	}
 
 	// 2. Get token from DB
 	token, err := api.Database.GetTokenByDomain("eff.org")
 	if err != nil {
-		t.Errorf("Token for eff.org not found in database")
-		return
+		t.Fatalf("Token for eff.org not found in database")
 	}
 
 	// 3. Request to be queued again.
 	resp = testRequest("POST", "/api/queue", requestData, api.Queue)
 	if resp.StatusCode != http.StatusOK {
-		t.Errorf("POST to api/queue failed with error %d", resp.StatusCode)
-		return
+		t.Fatalf("POST to api/queue failed with error %d", resp.StatusCode)
 	}
 
 	// 4. Old token shouldn't work.
@@ -270,8 +254,7 @@ func TestBasicScan(t *testing.T) {
 	data.Set("domain", "eff.org")
 	resp := testRequest("POST", "/api/scan", data, api.Scan)
 	if resp.StatusCode != http.StatusOK {
-		t.Errorf("POST to api/scan failed with error %d", resp.StatusCode)
-		return
+		t.Fatalf("POST to api/scan failed with error %d", resp.StatusCode)
 	}
 	if resp.Header.Get("Content-Type") != "application/json; charset=utf-8" {
 		t.Errorf("Expecting JSON content-type!")
@@ -291,8 +274,7 @@ func TestBasicScan(t *testing.T) {
 	// Check to see that scan results persisted.
 	resp = testRequest("GET", "api/scan?domain=eff.org", nil, api.Scan)
 	if resp.StatusCode != http.StatusOK {
-		t.Errorf("GET api/scan?domain=eff.org failed with error %d", resp.StatusCode)
-		return
+		t.Fatalf("GET api/scan?domain=eff.org failed with error %d", resp.StatusCode)
 	}
 	if resp.Header.Get("Content-Type") != "application/json; charset=utf-8" {
 		t.Errorf("Expecting JSON content-type!")
