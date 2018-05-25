@@ -230,12 +230,8 @@ func TestQueueWithoutHostnames(t *testing.T) {
 
 func TestQueueTwice(t *testing.T) {
 	// 1. Request to be queued
-	data := url.Values{}
-	data.Set("domain", "eff.org")
-	data.Set("email", "testing@fake-email.org")
-	data.Set("hostname_0", ".eff.org")
-	data.Set("hostname_1", "mx.eff.org")
-	resp := testRequest("POST", "/api/queue", data, api.Queue)
+	requestData := validQueueData()
+	resp := testRequest("POST", "/api/queue", requestData, api.Queue)
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("POST to api/queue failed with error %d", resp.StatusCode)
 		return
@@ -249,16 +245,16 @@ func TestQueueTwice(t *testing.T) {
 	}
 
 	// 3. Request to be queued again.
-	resp = testRequest("POST", "/api/queue", data, api.Queue)
+	resp = testRequest("POST", "/api/queue", requestData, api.Queue)
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("POST to api/queue failed with error %d", resp.StatusCode)
 		return
 	}
 
 	// 4. Old token shouldn't work.
-	data = url.Values{}
-	data.Set("token", token)
-	resp = testRequest("POST", "/api/validate", data, api.Validate)
+	requestData = url.Values{}
+	requestData.Set("token", token)
+	resp = testRequest("POST", "/api/validate", requestData, api.Validate)
 	if resp.StatusCode != 400 {
 		t.Errorf("Old validation token shouldn't work.")
 	}
