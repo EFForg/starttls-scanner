@@ -112,6 +112,23 @@ func TestGetDomainHidesEmail(t *testing.T) {
 	}
 }
 
+func TestQueueDomainHidesToken(t *testing.T) {
+	data := url.Values{}
+	data.Set("domain", "eff.org")
+	data.Set("email", "testing@fake-email.org")
+	data.Set("hostname_0", ".eff.org")
+	resp := testRequest("POST", "/api/queue", data, api.Queue)
+
+	token, err := api.Database.GetTokenByDomain("eff.org")
+	if err != nil {
+		t.Fatal(err)
+	}
+	responseBody, _ := ioutil.ReadAll(resp.Body)
+	if bytes.Contains(responseBody, []byte(token)) {
+		t.Errorf("Queueing domain leaks validation token")
+	}
+}
+
 // Tests basic queuing workflow.
 // Requests domain to be queued, and validates corresponding e-mail token.
 // Domain status should then be updated to "queued".
