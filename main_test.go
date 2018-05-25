@@ -107,6 +107,7 @@ func validQueueData() url.Values {
 	data.Set("domain", "eff.org")
 	data.Set("email", "testing@fake-email.org")
 	data.Set("hostname_0", ".eff.org")
+	data.Set("hostname_1", "mx.eff.org")
 	return data
 }
 
@@ -143,12 +144,8 @@ func TestQueueDomainHidesToken(t *testing.T) {
 // Domain status should then be updated to "queued".
 func TestBasicQueueWorkflow(t *testing.T) {
 	// 1. Request to be queued
-	data := url.Values{}
-	data.Set("domain", "eff.org")
-	data.Set("email", "testing@fake-email.org")
-	data.Set("hostname_0", ".eff.org")
-	data.Set("hostname_1", "mx.eff.org")
-	resp := testRequest("POST", "/api/queue", data, api.Queue)
+	queueDomainPostData := validQueueData()
+	resp := testRequest("POST", "/api/queue", queueDomainPostData, api.Queue)
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("POST to api/queue failed with error %d", resp.StatusCode)
 		return
@@ -158,7 +155,8 @@ func TestBasicQueueWorkflow(t *testing.T) {
 	}
 
 	// 2. Request queue status
-	resp = testRequest("GET", "/api/queue?domain=eff.org", nil, api.Queue)
+	queueDomainGetPath := fmt.Sprintf("/api/queue?domain=%s", queueDomainPostData.Get("domain"))
+	resp = testRequest("GET", queueDomainGetPath, nil, api.Queue)
 	// 2-T. Check to see domain status was initialized to 'unvalidated'
 	domainBody, _ := ioutil.ReadAll(resp.Body)
 	domainData := db.DomainData{}
@@ -177,14 +175,14 @@ func TestBasicQueueWorkflow(t *testing.T) {
 	}
 
 	// 3. Validate domain token
-	token, err := api.Database.GetTokenByDomain("eff.org")
+	token, err := api.Database.GetTokenByDomain(queueDomainPostData.Get("domain"))
 	if err != nil {
-		t.Errorf("Token for eff.org not found in database")
+		t.Errorf("Token not found in database")
 		return
 	}
-	data = url.Values{}
-	data.Set("token", token)
-	resp = testRequest("POST", "/api/validate", data, api.Validate)
+	tokenRequestData := url.Values{}
+	tokenRequestData.Set("token", token)
+	resp = testRequest("POST", "/api/validate", tokenRequestData, api.Validate)
 	// 3-T. Ensure response body contains domain name
 	domainBody, _ = ioutil.ReadAll(resp.Body)
 	var responseObj map[string]interface{}
@@ -193,19 +191,19 @@ func TestBasicQueueWorkflow(t *testing.T) {
 		t.Errorf("Returned invalid JSON object:%v\n", string(domainBody))
 		return
 	}
-	if responseObj["response"] != "eff.org" {
-		t.Errorf("Token was not validated for eff.org")
+	if responseObj["response"] != queueDomainPostData.Get("domain") {
+		t.Errorf("Token was not validated for %s", queueDomainPostData.Get("domain"))
 		return
 	}
 
 	// 3-T2. Ensure double-validation does not work.
-	resp = testRequest("POST", "/api/validate", data, api.Validate)
+	resp = testRequest("POST", "/api/validate", tokenRequestData, api.Validate)
 	if resp.StatusCode != 400 {
 		t.Errorf("Validation token shouldn't be able to be used twice!")
 	}
 
 	// 4. Request queue status again
-	resp = testRequest("GET", "/api/queue?domain=eff.org", nil, api.Queue)
+	resp = testRequest("GET", queueDomainGetPath, nil, api.Queue)
 	// 4-T. Check to see domain status was updated to "queued" after valid token redemption
 	domainBody, _ = ioutil.ReadAll(resp.Body)
 	err = json.Unmarshal(domainBody, &APIResponse{Response: &domainData})
@@ -214,7 +212,7 @@ func TestBasicQueueWorkflow(t *testing.T) {
 		return
 	}
 	if domainData.State != "queued" {
-		t.Errorf("Token validation should have automatically queued eff.org")
+		t.Errorf("Token validation should have automatically queued domain")
 		return
 	}
 }
