@@ -102,24 +102,33 @@ func testRequest(method string, path string, data url.Values, handler apiHandler
 	return w.Result()
 }
 
+func validQueueData() url.Values {
+	data := url.Values{}
+	data.Set("domain", "eff.org")
+	data.Set("email", "testing@fake-email.org")
+	data.Set("hostname_0", ".eff.org")
+	return data
+}
+
 func TestGetDomainHidesEmail(t *testing.T) {
-	testRequest("POST", "/api/queue?domain=eff.org&email=testing@fake-email.org", nil, api.Queue)
-	resp := testRequest("GET", "/api/queue?domain=eff.org", nil, api.Queue)
+	requestData := validQueueData()
+	testRequest("POST", "/api/queue", requestData, api.Queue)
+
+	path := fmt.Sprintf("/api/queue?domain=%s", requestData.Get("domain"))
+	resp := testRequest("GET", path, nil, api.Queue)
+
 	// Check to see domain JSON hides email
 	domainBody, _ := ioutil.ReadAll(resp.Body)
-	if bytes.Contains(domainBody, []byte("testing@fake-email.org")) {
+	if bytes.Contains(domainBody, []byte(requestData.Get("email"))) {
 		t.Errorf("Domain object includes e-mail address!")
 	}
 }
 
 func TestQueueDomainHidesToken(t *testing.T) {
-	data := url.Values{}
-	data.Set("domain", "eff.org")
-	data.Set("email", "testing@fake-email.org")
-	data.Set("hostname_0", ".eff.org")
-	resp := testRequest("POST", "/api/queue", data, api.Queue)
+	requestData := validQueueData()
+	resp := testRequest("POST", "/api/queue", requestData, api.Queue)
 
-	token, err := api.Database.GetTokenByDomain("eff.org")
+	token, err := api.Database.GetTokenByDomain(requestData.Get("domain"))
 	if err != nil {
 		t.Fatal(err)
 	}
