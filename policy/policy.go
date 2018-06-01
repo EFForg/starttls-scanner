@@ -66,7 +66,7 @@ type UpdatedList struct {
 }
 
 // Retrieve and parse List from policyURL.
-func fetchListHTTP(policyURL string) (List, error) {
+func FetchListHTTP(policyURL string) (List, error) {
 	resp, err := http.Get(policyURL)
 	if err != nil {
 		return List{}, err
@@ -133,13 +133,13 @@ func (l UpdatedList) Get(domain string) (TLSPolicy, error) {
 	}
 }
 
-// MakeUpdatedList constructs and UpdatedList object and launches a
+// MakeUpdatedList constructs an UpdatedList object and launches a
 // worker thread to continually update it.
-func MakeUpdatedList() UpdatedList {
+func MakeUpdatedList(fetcher listFetcher) UpdatedList {
 	list := UpdatedList{
 		messages:        make(chan policyRequest),
 		policyURL:       PolicyURL,
-		fetch:           fetchListHTTP,
+		fetch:           fetcher,
 		updateFrequency: time.Hour,
 	}
 	go list.worker()
