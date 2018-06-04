@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -28,7 +29,7 @@ type TLSPolicy struct {
 }
 
 // List is a raw representation of the policy list.
-type List struct {
+type list struct {
 	Timestamp     time.Time            `json:"timestamp"`
 	Expires       time.Time            `json:"expires"`
 	Version       string               `json:"version"`
@@ -40,13 +41,13 @@ type List struct {
 
 // Get retrieves the TLSPolicy for a domain, and resolves
 // aliases if they exist.
-func (t List) Get(domain string) (TLSPolicy, error) {
-	policy, ok := t.Policies[domain]
+func (l list) get(domain string) (TLSPolicy, error) {
+	policy, ok := l.Policies[domain]
 	if !ok {
 		return TLSPolicy{}, fmt.Errorf("Policy for %d doesn't exist")
 	}
 	if len(policy.PolicyAlias) > 0 {
-		policy, ok = t.PolicyAliases[policy.PolicyAlias]
+		policy, ok = l.PolicyAliases[policy.PolicyAlias]
 		if !ok {
 			return TLSPolicy{}, fmt.Errorf("Policy alias for %d doesn't exist")
 		}
@@ -54,94 +55,52 @@ func (t List) Get(domain string) (TLSPolicy, error) {
 	return policy, nil
 }
 
-type listFetcher func(string) (List, error)
-
 // UpdatedList wraps a List that is updated from a remote
 // policyURL every hour. Safe for concurrent calls to `Get`.
 type UpdatedList struct {
-	messages        chan policyRequest
-	updateFrequency time.Duration
-	fetch           listFetcher
-	policyURL       string
+	mu sync.RWMutex
+	list
 }
 
+func (l UpdatedList) Get(domain string) (TLSPolicy, error) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	return l.list.get(domain)
+}
+
+// type listFetcher func(string)
+
 // Retrieve and parse List from policyURL.
-func FetchListHTTP(policyURL string) (List, error) {
+func (l UpdatedList) FetchListHTTP(policyURL string) {
 	resp, err := http.Get(policyURL)
 	if err != nil {
-		return List{}, err
+		// Log the error
+		return
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
-	var policyList List
+	var policyList list
 	err = json.Unmarshal(body, &policyList)
 	if err != nil {
-		return List{}, err
+		// Log the error
+		return
 	}
-	return policyList, nil
-}
-
-// A request made to the worker thread.
-type policyRequest struct {
-	domain    string
-	responses chan TLSPolicy
-	errors    chan error
-}
-
-// This routine serializes all reads and writes to the policy list.
-func (l UpdatedList) worker() {
-	currentList, err := l.fetch(l.policyURL)
-	for {
-		select {
-		case req := <-l.messages:
-			if err != nil {
-				req.errors <- err
-				continue
-			}
-			policy, getErr := currentList.Get(req.domain)
-			if getErr != nil {
-				req.errors <- getErr
-				continue
-			}
-			req.responses <- policy
-		case <-time.After(l.updateFrequency):
-			if list, err := l.fetch(l.policyURL); err == nil {
-				currentList = list
-			}
-
-		}
-	}
-}
-
-// Get safely retrieves a domain from the list. This will
-// wait for any outstanding writes to be performed before
-// reading.
-func (l UpdatedList) Get(domain string) (TLSPolicy, error) {
-	req := policyRequest{
-		domain:    domain,
-		responses: make(chan TLSPolicy),
-		errors:    make(chan error),
-	}
-	l.messages <- req
-	select {
-	case resp := <-req.responses:
-		return resp, nil
-	case err := <-req.errors:
-		return TLSPolicy{}, err
-	case <-time.After(time.Second * 3):
-		return TLSPolicy{}, fmt.Errorf("Timed out")
-	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.list = policyList
 }
 
 // MakeUpdatedList constructs an UpdatedList object and launches a
 // worker thread to continually update it.
-func MakeUpdatedList(fetcher listFetcher) UpdatedList {
-	list := UpdatedList{
-		messages:        make(chan policyRequest),
-		policyURL:       PolicyURL,
-		fetch:           fetcher,
-		updateFrequency: time.Hour,
-	}
-	go list.worker()
+func MakeUpdatedList() UpdatedList {
+	list := UpdatedList{}
+
+	go func() {
+		for {
+			list.FetchListHTTP(PolicyURL)
+			time.Sleep(time.Hour)
+		}
+	}()
 	return list
 }
