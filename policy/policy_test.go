@@ -6,22 +6,22 @@ import (
 	"testing"
 )
 
-var mockList = List{
+var mockList = list{
 	Policies: map[string]TLSPolicy{
 		"eff.org": TLSPolicy{Mode: "testing"},
 	},
 }
 
-func mockListFetcher(s string) (List, error) {
+func mockFetchHTTP() (list, error) {
 	return mockList, nil
 }
 
-func mockErroringFetcher(s string) (List, error) {
-	return List{}, fmt.Errorf("something went wrong")
+func mockErroringFetchHTTP() (list, error) {
+	return list{}, fmt.Errorf("something went wrong")
 }
 
 func TestGetPolicy(t *testing.T) {
-	list := CreateUpdatedList(mockListFetcher)
+	list := MakeUpdatedList(mockFetchHTTP)
 
 	policy, err := list.Get("not-on-the-list.com")
 	if err == nil {
@@ -38,9 +38,9 @@ func TestGetPolicy(t *testing.T) {
 }
 
 func TestFailedListUpdate(t *testing.T) {
-	list := CreateUpdatedList(mockListFetcher)
+	list := MakeUpdatedList(mockErroringFetchHTTP)
 	_, err := list.Get("eff.org")
-	if err != nil {
+	if err == nil {
 		t.Errorf("Get should return an error if fetching the list fails")
 	}
 }

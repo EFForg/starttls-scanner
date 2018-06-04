@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"sync"
 	"time"
 )
 
-// PolicyURL is the default URL from which to fetch the policy JSON.
-const PolicyURL = "https://dl.eff.org/starttls-everywhere/policy.json"
+// policyURL is the default URL from which to fetch the policy JSON.
+const policyURL = "https://dl.eff.org/starttls-everywhere/policy.json"
 
 // Pinset represents a set of valid public keys for a domain's
 // SSL certificate.
@@ -44,12 +45,12 @@ type list struct {
 func (l list) get(domain string) (TLSPolicy, error) {
 	policy, ok := l.Policies[domain]
 	if !ok {
-		return TLSPolicy{}, fmt.Errorf("Policy for %d doesn't exist")
+		return TLSPolicy{}, fmt.Errorf("Policy for %s doesn't exist", domain)
 	}
 	if len(policy.PolicyAlias) > 0 {
 		policy, ok = l.PolicyAliases[policy.PolicyAlias]
 		if !ok {
-			return TLSPolicy{}, fmt.Errorf("Policy alias for %d doesn't exist")
+			return TLSPolicy{}, fmt.Errorf("Policy alias for %s doesn't exist", domain)
 		}
 	}
 	return policy, nil
@@ -65,13 +66,13 @@ type UpdatedList struct {
 func (l UpdatedList) Get(domain string) (TLSPolicy, error) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-	return l.list.get(domain)
+	return l.get(domain)
 }
 
-type listFetcher func(string) (list, err)
+type fetchListFn func() (list, error)
 
 // Retrieve and parse List from policyURL.
-func fetchListHTTP(policyURL string) (list, err) {
+func FetchListHTTP() (list, error) {
 	resp, err := http.Get(policyURL)
 	if err != nil {
 		return list{}, err
@@ -86,19 +87,26 @@ func fetchListHTTP(policyURL string) (list, err) {
 	return policyList, nil
 }
 
+func (l *UpdatedList) update(fetch fetchListFn) {
+	newList, err := fetch()
+	if err != nil {
+		log.Println(err)
+	} else {
+		l.mu.Lock()
+		l.list = newList
+		l.mu.Unlock()
+	}
+}
+
 // MakeUpdatedList constructs an UpdatedList object and launches a
 // worker thread to continually update it.
-func MakeUpdatedList() UpdatedList {
+func MakeUpdatedList(fetchList fetchListFn) UpdatedList {
 	l := UpdatedList{}
+	l.update(fetchList)
 
 	go func() {
 		for {
-			l.mu.Lock()
-			l.list, err = fetchListHTTP(PolicyURL)
-			l.mu.Unlock()
-			if err != nil {
-				// Log it
-			}
+			l.update(fetchList)
 			time.Sleep(time.Hour)
 		}
 	}()
