@@ -65,42 +65,42 @@ type UpdatedList struct {
 func (l UpdatedList) Get(domain string) (TLSPolicy, error) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-
 	return l.list.get(domain)
 }
 
-// type listFetcher func(string)
+type listFetcher func(string) (list, err)
 
 // Retrieve and parse List from policyURL.
-func (l UpdatedList) FetchListHTTP(policyURL string) {
+func fetchListHTTP(policyURL string) (list, err) {
 	resp, err := http.Get(policyURL)
 	if err != nil {
-		// Log the error
-		return
+		return list{}, err
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	var policyList list
 	err = json.Unmarshal(body, &policyList)
 	if err != nil {
-		// Log the error
-		return
+		return list{}, err
 	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.list = policyList
+	return policyList, nil
 }
 
 // MakeUpdatedList constructs an UpdatedList object and launches a
 // worker thread to continually update it.
 func MakeUpdatedList() UpdatedList {
-	list := UpdatedList{}
+	l := UpdatedList{}
 
 	go func() {
 		for {
-			list.FetchListHTTP(PolicyURL)
+			l.mu.Lock()
+			l.list, err = fetchListHTTP(PolicyURL)
+			l.mu.Unlock()
+			if err != nil {
+				// Log it
+			}
 			time.Sleep(time.Hour)
 		}
 	}()
-	return list
+	return l
 }
