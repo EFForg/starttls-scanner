@@ -21,7 +21,7 @@ func mockErroringFetchHTTP() (list, error) {
 }
 
 func TestGetPolicy(t *testing.T) {
-	list := MakeUpdatedList(mockFetchHTTP)
+	list := makeUpdatedList(mockFetchHTTP)
 
 	policy, err := list.Get("not-on-the-list.com")
 	if err == nil {
@@ -38,7 +38,7 @@ func TestGetPolicy(t *testing.T) {
 }
 
 func TestFailedListUpdate(t *testing.T) {
-	list := MakeUpdatedList(mockErroringFetchHTTP)
+	list := makeUpdatedList(mockErroringFetchHTTP)
 	_, err := list.Get("eff.org")
 	if err == nil {
 		t.Errorf("Get should return an error if fetching the list fails")

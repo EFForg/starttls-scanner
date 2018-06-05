@@ -74,7 +74,7 @@ func (l UpdatedList) Get(domain string) (TLSPolicy, error) {
 type fetchListFn func() (list, error)
 
 // Retrieve and parse List from policyURL
-func FetchListHTTP() (list, error) {
+func fetchListHTTP() (list, error) {
 	resp, err := http.Get(policyURL)
 	if err != nil {
 		return list{}, err
@@ -101,17 +101,23 @@ func (l *UpdatedList) update(fetch fetchListFn) {
 	}
 }
 
-// MakeUpdatedList constructs an UpdatedList object and launches a
-// thread to continually update it.
-func MakeUpdatedList(fetchList fetchListFn) UpdatedList {
+// makeUpdatedList constructs an UpdatedList object and launches a
+// thread to continually update it. Accepts a fetchListFn to allow
+// stubbing http request to remote policy list.
+func makeUpdatedList(fetch fetchListFn) UpdatedList {
 	l := UpdatedList{}
-	l.update(fetchList)
+	l.update(fetch)
 
 	go func() {
 		for {
-			l.update(fetchList)
+			l.update(fetch)
 			time.Sleep(time.Hour)
 		}
 	}()
 	return l
+}
+
+// Wraps makeUpdatedList to use FetchListHTTP by default to update policy list
+func MakeUpdatedList() UpdatedList {
+	return makeUpdatedList(fetchListHTTP)
 }

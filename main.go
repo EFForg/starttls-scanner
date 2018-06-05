@@ -101,7 +101,7 @@ func main() {
 	api := API{
 		Database:    db,
 		CheckDomain: defaultCheck,
-		List:        policy.MakeUpdatedList(policy.FetchListHTTP),
+		List:        policy.MakeUpdatedList(),
 		DontScan:    loadDontScan(),
 	}
 	ServePublicEndpoints(&api, &cfg)
