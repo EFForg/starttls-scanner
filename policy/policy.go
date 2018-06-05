@@ -93,7 +93,7 @@ func fetchListHTTP() (list, error) {
 func (l *UpdatedList) update(fetch fetchListFn) {
 	newList, err := fetch()
 	if err != nil {
-		log.Println(err)
+		log.Printf("Error updating policy list: %s\n", err)
 	} else {
 		l.mu.Lock()
 		l.list = newList
