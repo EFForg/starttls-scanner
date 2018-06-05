@@ -40,7 +40,7 @@ type list struct {
 	Policies      map[string]TLSPolicy `json:"policies"`
 }
 
-// Get retrieves the TLSPolicy for a domain, and resolves
+// get retrieves the TLSPolicy for a domain, and resolves
 // aliases if they exist.
 func (l list) get(domain string) (TLSPolicy, error) {
 	policy, ok := l.Policies[domain]
@@ -56,22 +56,24 @@ func (l list) get(domain string) (TLSPolicy, error) {
 	return policy, nil
 }
 
-// UpdatedList wraps a List that is updated from a remote
+// UpdatedList wraps a list that is updated from a remote
 // policyURL every hour. Safe for concurrent calls to `Get`.
 type UpdatedList struct {
 	mu sync.RWMutex
 	list
 }
 
+// Safely read from the underlying policy list and return a TLSPolicy for a domain
 func (l UpdatedList) Get(domain string) (TLSPolicy, error) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.get(domain)
 }
 
+// fetchListFn returns a new policy list. It can be used to update UpdatedList
 type fetchListFn func() (list, error)
 
-// Retrieve and parse List from policyURL.
+// Retrieve and parse List from policyURL
 func FetchListHTTP() (list, error) {
 	resp, err := http.Get(policyURL)
 	if err != nil {
@@ -87,6 +89,7 @@ func FetchListHTTP() (list, error) {
 	return policyList, nil
 }
 
+// Get a new policy list and safely assign it the UpdatedList
 func (l *UpdatedList) update(fetch fetchListFn) {
 	newList, err := fetch()
 	if err != nil {
@@ -99,7 +102,7 @@ func (l *UpdatedList) update(fetch fetchListFn) {
 }
 
 // MakeUpdatedList constructs an UpdatedList object and launches a
-// worker thread to continually update it.
+// thread to continually update it.
 func MakeUpdatedList(fetchList fetchListFn) UpdatedList {
 	l := UpdatedList{}
 	l.update(fetchList)
