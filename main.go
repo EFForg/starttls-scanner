@@ -29,23 +29,28 @@ func validPort(port string) (string, error) {
 	return fmt.Sprintf(":%s", port), nil
 }
 
+func throttle(period time.Duration, limit int64, f http.Handler) http.Handler {
+	rateLimitStore := memory.NewStore()
+	rate := limiter.Rate{
+		Period: period,
+		Limit:  limit,
+	}
+	rateLimiter := stdlib.NewMiddleware(limiter.New(rateLimitStore, rate),
+		stdlib.WithForwardHeader(true))
+	return rateLimiter.Handler(f)
+}
+
 func registerHandlers(api *API, mux *http.ServeMux) http.Handler {
 	mux.HandleFunc("/api/scan", apiWrapper(api.Scan))
-	mux.HandleFunc("/api/queue", apiWrapper(api.Queue))
+	// Throttle the queue endpoint more aggressively so we don't send junk e-mail.
+	mux.Handle("/api/queue",
+		throttle(time.Hour, 3, http.HandlerFunc(apiWrapper(api.Queue))))
 	mux.HandleFunc("/api/validate", apiWrapper(api.Validate))
 
 	originsOk := handlers.AllowedOrigins([]string{os.Getenv("ALLOWED_ORIGINS")})
 
-	rateLimitStore := memory.NewStore()
-	rate := limiter.Rate{
-		Period: 1 * time.Minute,
-		Limit:  10,
-	}
-	rateLimiter := stdlib.NewMiddleware(limiter.New(rateLimitStore, rate),
-		stdlib.WithForwardHeader(true))
-
 	handler := recoveryHandler(
-		rateLimiter.Handler(handlers.CORS(originsOk)(mux)),
+		throttle(time.Minute, 10, handlers.CORS(originsOk)(mux)),
 	)
 	return handlers.LoggingHandler(os.Stdout, handler)
 }
