@@ -40,21 +40,6 @@ func throttle(period time.Duration, limit int64, f http.Handler) http.Handler {
 	return rateLimiter.Handler(f)
 }
 
-func registerHandlers(api *API, mux *http.ServeMux) http.Handler {
-	mux.HandleFunc("/api/scan", apiWrapper(api.Scan))
-	// Throttle the queue endpoint more aggressively so we don't send junk e-mail.
-	mux.Handle("/api/queue",
-		throttle(time.Hour, 3, http.HandlerFunc(apiWrapper(api.Queue))))
-	mux.HandleFunc("/api/validate", apiWrapper(api.Validate))
-
-	originsOk := handlers.AllowedOrigins([]string{os.Getenv("ALLOWED_ORIGINS")})
-
-	handler := recoveryHandler(
-		throttle(time.Minute, 10, handlers.CORS(originsOk)(mux)),
-	)
-	return handlers.LoggingHandler(os.Stdout, handler)
-}
-
 func recoveryHandler(f http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
@@ -69,6 +54,21 @@ func recoveryHandler(f http.Handler) http.Handler {
 
 		f.ServeHTTP(w, r)
 	})
+}
+
+func registerHandlers(api *API, mux *http.ServeMux) http.Handler {
+	mux.HandleFunc("/api/scan", apiWrapper(api.Scan))
+	// Throttle the queue endpoint more aggressively so we don't send junk e-mail.
+	mux.Handle("/api/queue",
+		throttle(time.Hour, 3, http.HandlerFunc(apiWrapper(api.Queue))))
+	mux.HandleFunc("/api/validate", apiWrapper(api.Validate))
+
+	originsOk := handlers.AllowedOrigins([]string{os.Getenv("ALLOWED_ORIGINS")})
+
+	handler := recoveryHandler(
+		throttle(time.Minute, 10, handlers.CORS(originsOk)(mux)),
+	)
+	return handlers.LoggingHandler(os.Stdout, handler)
 }
 
 // ServePublicEndpoints serves all public HTTP endpoints.
