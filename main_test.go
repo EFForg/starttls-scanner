@@ -116,7 +116,9 @@ func TestRateLimitByIP(t *testing.T) {
 	server := httptest.NewServer(registerHandlers(api, mux))
 	defer server.Close()
 
-	http.Get(fmt.Sprintf("%s/", server.URL))
+	for i := 0; i < 10; i++ {
+		http.Get(fmt.Sprintf("%s/", server.URL))
+	}
 	resp, err := http.Get(fmt.Sprintf("%s/", server.URL))
 
 	if err != nil {

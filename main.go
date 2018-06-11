@@ -14,11 +14,12 @@ import (
 
 	"github.com/EFForg/starttls-scanner/db"
 	"github.com/EFForg/starttls-scanner/policy"
-	"github.com/didip/tollbooth"
-	"github.com/didip/tollbooth/limiter"
 	"github.com/getsentry/raven-go"
 	"github.com/gorilla/handlers"
 	"github.com/joho/godotenv"
+	"github.com/ulule/limiter"
+	"github.com/ulule/limiter/drivers/middleware/stdlib"
+	"github.com/ulule/limiter/drivers/store/memory"
 )
 
 func validPort(port string) (string, error) {
@@ -35,13 +36,16 @@ func registerHandlers(api *API, mux *http.ServeMux) http.Handler {
 
 	originsOk := handlers.AllowedOrigins([]string{os.Getenv("ALLOWED_ORIGINS")})
 
-	rateLimit := tollbooth.NewLimiter(1, &limiter.ExpirableOptions{
-		DefaultExpirationTTL: time.Hour,
-	})
-	rateLimit.SetIPLookups([]string{"X-Forwarded-For", "RemoteAddr", "X-Real-IP"})
+	rateLimitStore := memory.NewStore()
+	rate := limiter.Rate{
+		Period: 1 * time.Minute,
+		Limit:  10,
+	}
+	rateLimiter := stdlib.NewMiddleware(limiter.New(rateLimitStore, rate),
+		stdlib.WithForwardHeader(true))
 
 	handler := recoveryHandler(
-		tollbooth.LimitHandler(rateLimit, handlers.CORS(originsOk)(mux)),
+		rateLimiter.Handler(handlers.CORS(originsOk)(mux)),
 	)
 	return handlers.LoggingHandler(os.Stdout, handler)
 }
