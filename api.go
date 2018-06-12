@@ -197,7 +197,7 @@ func getDomainParams(r *http.Request, domain string) (db.DomainData, error) {
 	if len(domainData.MXs) == 0 {
 		return domainData, fmt.Errorf("No hostnames supplied for domain's TLS policy")
 	}
-	if len(r.PostForm["hostnames"]) > MaxHostnames {
+	if len(domainData.MXs) > MaxHostnames {
 		return domainData, fmt.Errorf("No more than 8 MX hostnames are permitted")
 	}
 	return domainData, nil
