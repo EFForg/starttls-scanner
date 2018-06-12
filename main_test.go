@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/EFForg/starttls-check/checker"
 	"github.com/EFForg/starttls-scanner/db"
@@ -40,6 +41,11 @@ func (l mockList) Get(domain string) (policy.TLSPolicy, error) {
 	return policy.TLSPolicy{}, fmt.Errorf("no such domain on this list")
 }
 
+// Mock emailer
+type mockEmailer struct{}
+
+func (e mockEmailer) SendValidation(domainInfo *db.DomainData, token string) error { return nil }
+
 // Load env. vars, initialize DB hook, and tests API
 func TestMain(m *testing.M) {
 	cfg, err := db.LoadEnvironmentVariables()
@@ -58,6 +64,7 @@ func TestMain(m *testing.M) {
 		Database:    db.InitMemDatabase(cfg),
 		CheckDomain: mockCheckPerform("testequal"),
 		List:        mockList{domains: fakeList},
+		Emailer:     mockEmailer{},
 	}
 	code := m.Run()
 	api.Database.ClearTables()
@@ -90,12 +97,10 @@ func TestPanicRecovery(t *testing.T) {
 	server := httptest.NewServer(registerHandlers(api, mux))
 	defer server.Close()
 
-	log.SetOutput(ioutil.Discard)
 	resp, err := http.Get(fmt.Sprintf("%s/panic", server.URL))
-	log.SetOutput(os.Stderr)
 
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	if resp.StatusCode != 500 {
 		t.Errorf("Expected server to respond with 500")
@@ -103,7 +108,7 @@ func TestPanicRecovery(t *testing.T) {
 }
 
 func panickingHandler(w http.ResponseWriter, r *http.Request) {
-	panic("Something went wrong")
+	panic(fmt.Errorf("oh no"))
 }
 
 // Helper function to mock a request to the server via https.
@@ -118,17 +123,20 @@ func testRequest(method string, path string, data url.Values, handler apiHandler
 	return w.Result()
 }
 
-func validQueueData() url.Values {
+func validQueueData(scan bool) url.Values {
 	data := url.Values{}
 	data.Set("domain", "eff.org")
+	if scan {
+		testRequest("POST", "/api/scan", data, api.Scan)
+	}
 	data.Set("email", "testing@fake-email.org")
-	data.Set("hostname_0", ".eff.org")
-	data.Set("hostname_1", "mx.eff.org")
+	data.Add("hostnames", ".eff.org")
+	data.Add("hostnames", "mx.eff.org")
 	return data
 }
 
 func TestGetDomainHidesEmail(t *testing.T) {
-	requestData := validQueueData()
+	requestData := validQueueData(true)
 	testRequest("POST", "/api/queue", requestData, api.Queue)
 
 	path := fmt.Sprintf("/api/queue?domain=%s", requestData.Get("domain"))
@@ -142,7 +150,7 @@ func TestGetDomainHidesEmail(t *testing.T) {
 }
 
 func TestQueueDomainHidesToken(t *testing.T) {
-	requestData := validQueueData()
+	requestData := validQueueData(true)
 	resp := testRequest("POST", "/api/queue", requestData, api.Queue)
 	token, err := api.Database.GetTokenByDomain(requestData.Get("domain"))
 	if err != nil {
@@ -159,7 +167,7 @@ func TestQueueDomainHidesToken(t *testing.T) {
 // Domain status should then be updated to "queued".
 func TestBasicQueueWorkflow(t *testing.T) {
 	// 1. Request to be queued
-	queueDomainPostData := validQueueData()
+	queueDomainPostData := validQueueData(true)
 	resp := testRequest("POST", "/api/queue", queueDomainPostData, api.Queue)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("POST to api/queue failed with error %d", resp.StatusCode)
@@ -233,9 +241,27 @@ func TestQueueWithoutHostnames(t *testing.T) {
 	}
 }
 
+func TestQueueWithoutScan(t *testing.T) {
+	api.Database.ClearTables()
+	requestData := validQueueData(false)
+	resp := testRequest("POST", "/api/queue", requestData, api.Queue)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("POST to api/queue should have failed with error %d", resp.StatusCode)
+	}
+}
+
+func TestQueueInvalidDomain(t *testing.T) {
+	requestData := validQueueData(true)
+	requestData.Add("hostnames", "banana")
+	resp := testRequest("POST", "/api/queue", requestData, api.Queue)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("Expected POST to api/queue to fail.")
+	}
+}
+
 func TestQueueTwice(t *testing.T) {
 	// 1. Request to be queued
-	requestData := validQueueData()
+	requestData := validQueueData(true)
 	resp := testRequest("POST", "/api/queue", requestData, api.Queue)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("POST to api/queue failed with error %d", resp.StatusCode)
@@ -372,5 +398,13 @@ func TestScanCached(t *testing.T) {
 	}
 	if scanData.Data.Message != original.Message {
 		t.Fatalf("Scan expected to have been cached, not reperformed\n")
+	}
+}
+
+func TestValidationEmailText(t *testing.T) {
+	content := validationEmailText("example.com", []string{"mx.example.com, .mx.example.com"}, "abcd", time.Now(),
+		"https://fake.starttls-everywhere.website")
+	if !strings.Contains(content, "https://fake.starttls-everywhere.website/validate/abcd") {
+		t.Errorf("E-mail formatted incorrectly.")
 	}
 }

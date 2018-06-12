@@ -12,6 +12,7 @@ import (
 	"github.com/EFForg/starttls-check/checker"
 	"github.com/EFForg/starttls-scanner/db"
 	"github.com/EFForg/starttls-scanner/policy"
+	"github.com/getsentry/raven-go"
 )
 
 ////////////////////////////////
@@ -39,6 +40,7 @@ type API struct {
 	CheckDomain checkPerformer
 	List        PolicyList
 	DontScan    map[string]bool
+	Emailer     EmailSender
 }
 
 // PolicyList interface wraps a policy-list like structure.
@@ -46,6 +48,13 @@ type API struct {
 // for a particular domain.
 type PolicyList interface {
 	Get(string) (policy.TLSPolicy, error)
+}
+
+// EmailSender interface wraps a back-end that can send e-mails.
+type EmailSender interface {
+	// SendValidation sends a validation e-mail for a particular domain,
+	// with a particular validation token.
+	SendValidation(*db.DomainData, string) error
 }
 
 // APIResponse wraps all the responses from this API.
@@ -62,6 +71,10 @@ func apiWrapper(api apiHandler) func(w http.ResponseWriter, r *http.Request) {
 		response := api(r)
 		if response.StatusCode != http.StatusOK {
 			http.Error(w, response.Message, response.StatusCode)
+		}
+		if response.StatusCode == http.StatusInternalServerError {
+			packet := raven.NewPacket(response.Message, raven.NewHttp(r))
+			raven.Capture(packet, nil)
 		}
 		writeJSON(w, response)
 	}
@@ -171,17 +184,21 @@ func getDomainParams(r *http.Request, domain string) (db.DomainData, error) {
 		return domainData, err
 	}
 	domainData.Email = email
-	domainData.MXs = make([]string, 0)
-	for i := 0; i < MaxHostnames; i++ {
-		field := fmt.Sprintf("hostname_%d", i)
-		hostname, err := getParam(field, r)
-		if err != nil {
-			break
-		}
-		domainData.MXs = append(domainData.MXs, hostname)
-	}
+
+	domainData.MXs = r.PostForm["hostnames"]
 	if len(domainData.MXs) == 0 {
 		return domainData, fmt.Errorf("No hostnames supplied for domain's TLS policy")
+	}
+	if len(domainData.MXs) > MaxHostnames {
+		return domainData, fmt.Errorf("No more than 8 MX hostnames are permitted")
+	}
+	for _, hostname := range domainData.MXs {
+		if hostname[0] == '.' {
+			hostname = hostname[1:]
+		}
+		if !validDomainName(hostname) {
+			return domainData, fmt.Errorf("Hostname %s is invalid", hostname)
+		}
 	}
 	return domainData, nil
 }
@@ -202,6 +219,22 @@ func (api API) Queue(r *http.Request) APIResponse {
 	}
 	// POST: Insert this domain into the queue
 	if r.Method == http.MethodPost {
+		// 0. Check if scan occurred.
+		scan, err := api.Database.GetLatestScan(domain)
+		if err != nil {
+			return APIResponse{
+				StatusCode: http.StatusBadRequest,
+				Message: "We haven't scanned this domain yet. " +
+					"Please use the STARTTLS checker to scan your domain's " +
+					"STARTTLS configuration so we can validate your submission",
+			}
+		}
+		if scan.Data.Status != 0 {
+			return APIResponse{
+				StatusCode: http.StatusBadRequest,
+				Message:    "%s hasn't passed our STARTTLS security checks",
+			}
+		}
 		domainData, err := getDomainParams(r, domain)
 		if err != nil {
 			return APIResponse{StatusCode: http.StatusBadRequest, Message: err.Error()}
@@ -212,9 +245,17 @@ func (api API) Queue(r *http.Request) APIResponse {
 			return APIResponse{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 		}
 		// 2. Create token for domain
-		_, err = api.Database.PutToken(domain)
+		token, err := api.Database.PutToken(domain)
 		if err != nil {
 			return APIResponse{StatusCode: http.StatusInternalServerError, Message: err.Error()}
+		}
+
+		// 3. Send email
+		err = api.Emailer.SendValidation(&domainData, token.Token)
+		if err != nil {
+			log.Print(err)
+			return APIResponse{StatusCode: http.StatusInternalServerError,
+				Message: "Unable to send validation e-mail"}
 		}
 		return APIResponse{StatusCode: http.StatusOK, Response: domainData}
 		// GET: Retrieve domain status from queue
