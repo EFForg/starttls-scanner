@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
 	"github.com/EFForg/starttls-scanner/db"
 	"log"
@@ -56,16 +57,20 @@ func makeEmailConfigFromEnv() (emailConfig, error) {
 		return c, err
 	}
 	defer client.Close()
+	err = client.StartTLS(&tls.Config{ServerName: c.submissionHostname})
+	if err != nil {
+		return c, fmt.Errorf("SMTP server doesn't support STARTTLS")
+	}
 	ok, auths := client.Extension("AUTH")
 	if !ok {
-		return c, fmt.Errorf("Could not authenticate to remote SMTP server.")
+		return c, fmt.Errorf("remote SMTP server doesn't support any authentication mechanisms")
 	}
 	if strings.Contains(auths, "PLAIN") {
 		c.auth = smtp.PlainAuth("", c.username, c.password, c.submissionHostname)
 	} else if strings.Contains(auths, "CRAM-MD5") {
 		c.auth = smtp.CRAMMD5Auth(c.username, c.password)
 	} else {
-		return c, fmt.Errorf("%s SMTP server doesn't support PLAIN or CRAM-MD5 authentication.")
+		return c, fmt.Errorf("%s SMTP server doesn't support PLAIN or CRAM-MD5 authentication")
 	}
 	return c, nil
 }
