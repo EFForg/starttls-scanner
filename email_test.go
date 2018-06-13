@@ -21,6 +21,16 @@ func shouldPanic(t *testing.T, message string) {
 }
 
 func TestRequireMissingEnvPanics(t *testing.T) {
-	defer shouldPanic(t, "requireEnv should have panicked")
-	requireEnv("FAKE_ENV_VAR")
+	varErrs := Errors{}
+	requireEnv("FAKE_ENV_VAR", &varErrs)
+	if len(varErrs) == 0 {
+		t.Errorf("should have received an error")
+	}
+}
+
+func TestRequireEnvConfig(t *testing.T) {
+	_, err := makeEmailConfigFromEnv()
+	if err == nil {
+		t.Errorf("should have received multiple error from unset env vars")
+	}
 }

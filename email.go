@@ -6,7 +6,6 @@ import (
 	"github.com/EFForg/starttls-scanner/db"
 	"log"
 	"net/smtp"
-	"os"
 	"strings"
 	"time"
 )
@@ -21,16 +20,6 @@ type emailConfig struct {
 	port               string
 	sender             string
 	website            string // Needed to generate email template text.
-}
-
-// Retrieves environment variable varName. If not set as environment
-// variable, panic and exit.
-func requireEnv(varName string) string {
-	envVar := os.Getenv(varName)
-	if len(envVar) == 0 {
-		panic(fmt.Sprintf("Expected environment variable %s to be set.", varName))
-	}
-	return envVar
 }
 
 const validationEmailSubject = "Email validation for STARTTLS Policy List submission"
@@ -52,13 +41,17 @@ Thanks for helping us secure email for everyone :)
 
 func makeEmailConfigFromEnv() (emailConfig, error) {
 	// create config
+	varErrs := Errors{}
 	c := emailConfig{
-		username:           requireEnv("SMTP_USERNAME"),
-		password:           requireEnv("SMTP_PASSWORD"),
-		submissionHostname: requireEnv("SMTP_ENDPOINT"),
-		port:               requireEnv("SMTP_PORT"),
-		sender:             requireEnv("SMTP_FROM_ADDRESS"),
-		website:            requireEnv("FRONTEND_WEBSITE_LINK"),
+		username:           requireEnv("SMTP_USERNAME", &varErrs),
+		password:           requireEnv("SMTP_PASSWORD", &varErrs),
+		submissionHostname: requireEnv("SMTP_ENDPOINT", &varErrs),
+		port:               requireEnv("SMTP_PORT", &varErrs),
+		sender:             requireEnv("SMTP_FROM_ADDRESS", &varErrs),
+		website:            requireEnv("FRONTEND_WEBSITE_LINK", &varErrs),
+	}
+	if len(varErrs) > 0 {
+		return c, varErrs
 	}
 	log.Printf("Establishing auth connection with SMTP server %s", c.submissionHostname)
 	// create auth
