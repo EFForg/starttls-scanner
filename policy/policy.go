@@ -63,7 +63,7 @@ type UpdatedList struct {
 	list
 }
 
-// Safely read from the underlying policy list and return a TLSPolicy for a domain
+// Get safely reads from the underlying policy list and returns a TLSPolicy for a domain
 func (l UpdatedList) Get(domain string) (TLSPolicy, error) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -117,7 +117,7 @@ func makeUpdatedList(fetch fetchListFn) UpdatedList {
 	return l
 }
 
-// Wraps makeUpdatedList to use FetchListHTTP by default to update policy list
+// MakeUpdatedList wraps makeUpdatedList to use FetchListHTTP by default to update policy list
 func MakeUpdatedList() UpdatedList {
 	return makeUpdatedList(fetchListHTTP)
 }
