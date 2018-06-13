@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"github.com/EFForg/starttls-scanner/db"
+	"log"
 	"net/smtp"
+	"os"
 	"strings"
 	"time"
 )
@@ -11,6 +13,7 @@ import (
 // Configuration variables needed to submit emails for sending, as well as
 // to generate the templates.
 type emailConfig struct {
+	auth               smtp.Auth
 	username           string
 	password           string
 	submissionHostname string
@@ -36,6 +39,37 @@ Remember to read our guidelines (%s/policy-list) about the requirements your mai
 Thanks for helping us secure email for everyone :)
 `
 
+func makeEmailConfigFromEnv() (emailConfig, error) {
+	// create config
+	c := emailConfig{
+		username:           os.Getenv("SMTP_USERNAME"),
+		password:           os.Getenv("SMTP_PASSWORD"),
+		submissionHostname: os.Getenv("SMTP_ENDPOINT"),
+		port:               os.Getenv("SMTP_PORT"),
+		sender:             os.Getenv("SMTP_FROM_ADDRESS"),
+		website:            os.Getenv("FRONTEND_WEBSITE_LINK"),
+	}
+	log.Printf("Establishing auth connection with SMTP server %s", c.submissionHostname)
+	// create auth
+	client, err := smtp.Dial(fmt.Sprintf("%s:%s", c.submissionHostname, c.port))
+	if err != nil {
+		return c, err
+	}
+	defer client.Close()
+	ok, auths := client.Extension("AUTH")
+	if !ok {
+		return c, fmt.Errorf("Could not authenticate to remote SMTP server.")
+	}
+	if strings.Contains(auths, "PLAIN") {
+		c.auth = smtp.PlainAuth("", c.username, c.password, c.submissionHostname)
+	} else if strings.Contains(auths, "CRAM-MD5") {
+		c.auth = smtp.CRAMMD5Auth(c.username, c.password)
+	} else {
+		return c, fmt.Errorf("%s SMTP server doesn't support PLAIN or CRAM-MD5 authentication.")
+	}
+	return c, nil
+}
+
 func validationEmailText(domain string, hostnames []string, token string, additionDate time.Time, website string) string {
 	dateString := additionDate.String()
 	return fmt.Sprintf(validationEmailTemplate,
@@ -57,6 +91,6 @@ func (c emailConfig) sendEmail(subject string, body string, address string) erro
 	message := fmt.Sprintf("From: %s\nTo: %s\nSubject: %s\n\n%s",
 		c.sender, address, subject, body)
 	return smtp.SendMail(fmt.Sprintf("%s:%s", c.submissionHostname, c.port),
-		smtp.PlainAuth("", c.username, c.password, c.submissionHostname),
+		c.auth,
 		c.sender, []string{address}, []byte(message))
 }
