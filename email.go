@@ -23,6 +23,16 @@ type emailConfig struct {
 	website            string // Needed to generate email template text.
 }
 
+// Retrieves environment variable varName. If not set as environment
+// variable, panic and exit.
+func requireEnv(varName string) string {
+	envVar := os.Getenv(varName)
+	if len(envVar) == 0 {
+		panic(fmt.Sprintf("Expected environment variable %s to be set.", varName))
+	}
+	return envVar
+}
+
 const validationEmailSubject = "Email validation for STARTTLS Policy List submission"
 const validationEmailTemplate = `
 Hey there!
@@ -43,12 +53,12 @@ Thanks for helping us secure email for everyone :)
 func makeEmailConfigFromEnv() (emailConfig, error) {
 	// create config
 	c := emailConfig{
-		username:           os.Getenv("SMTP_USERNAME"),
-		password:           os.Getenv("SMTP_PASSWORD"),
-		submissionHostname: os.Getenv("SMTP_ENDPOINT"),
-		port:               os.Getenv("SMTP_PORT"),
-		sender:             os.Getenv("SMTP_FROM_ADDRESS"),
-		website:            os.Getenv("FRONTEND_WEBSITE_LINK"),
+		username:           requireEnv("SMTP_USERNAME"),
+		password:           requireEnv("SMTP_PASSWORD"),
+		submissionHostname: requireEnv("SMTP_ENDPOINT"),
+		port:               requireEnv("SMTP_PORT"),
+		sender:             requireEnv("SMTP_FROM_ADDRESS"),
+		website:            requireEnv("FRONTEND_WEBSITE_LINK"),
 	}
 	log.Printf("Establishing auth connection with SMTP server %s", c.submissionHostname)
 	// create auth
