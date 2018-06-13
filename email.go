@@ -29,7 +29,7 @@ Hey there!
 
 It looks like you requested *%s* to be added to the STARTTLS Policy List, with hostnames %s. If this was you, visit
 
- %s/validate/%s
+ %s/validate?%s
 
 to confirm! If this wasn't you, please let us know at starttls-policy@eff.org or by replying to this e-mail.
 
