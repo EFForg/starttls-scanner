@@ -117,7 +117,8 @@ func makeUpdatedList(fetch fetchListFn, updateFrequency time.Duration) UpdatedLi
 	return l
 }
 
-// MakeUpdatedList wraps makeUpdatedList to use FetchListHTTP by default to update policy list
+// MakeUpdatedList constructs and UpdatedList object and launches a
+// worker thread to continually update it.
 func MakeUpdatedList() UpdatedList {
 	return makeUpdatedList(fetchListHTTP, time.Hour)
 }

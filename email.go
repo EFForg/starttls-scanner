@@ -22,6 +22,15 @@ type emailConfig struct {
 	website            string // Needed to generate email template text.
 }
 
+const failedEmailSubject = "STARTTLS validation failed for STARTTLS Policy List submission"
+const failedListEmailTemplate = `
+Your mail domain failed validation.
+`
+
+const failedQueuedEmailTemplate = `
+Your mail domain failed validation.
+`
+
 const validationEmailSubject = "Email validation for STARTTLS Policy List submission"
 const validationEmailTemplate = `
 Hey there!
@@ -85,6 +94,24 @@ func validationEmailText(domain string, hostnames []string, token string, additi
 		website, token,
 		dateString, website, dateString, domain,
 		website)
+}
+
+func queueValidationFailedEmailText(domain string, errorMessage string, failTime time.Time) string {
+	// TODO: fill this in
+	return "failed."
+}
+
+func listValidationFailedEmailText(domain string, errorMessage string, failTime time.Time) string {
+	// TODO: fill this in
+	return "failed."
+}
+
+func SendQueueValidationFailed(domain string) error {
+	return nil
+}
+
+func SendListValidationFailed(domain string) error {
+	return nil
 }
 
 // SendValidation sends a validation e-mail for the domain outlined by domainInfo.
