@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/url"
 	"strings"
 	"time"
@@ -28,6 +29,7 @@ func getConnectionString(cfg Config) string {
 		url.PathEscape(cfg.DbPass),
 		url.PathEscape(cfg.DbHost),
 		url.PathEscape(cfg.DbName))
+	log.Println(connectionString)
 	return connectionString
 }
 
@@ -45,6 +47,13 @@ func InitSQLDatabase(cfg Config) (*SQLDatabase, error) {
 }
 
 // TOKEN DB FUNCTIONS
+
+// randToken generates a random token.
+func randToken() string {
+	b := make([]byte, 8)
+	rand.Read(b)
+	return fmt.Sprintf("%x", b)
+}
 
 // UseToken sets the `used` flag on a particular email validation token to
 // true, and returns the domain that was associated with the token.
