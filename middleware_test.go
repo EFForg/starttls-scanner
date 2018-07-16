@@ -34,9 +34,8 @@ func panickingHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func TestThrottleByIP(t *testing.T) {
-	mux := http.NewServeMux()
-	server := httptest.NewServer(registerHandlers(api, mux))
-	defer server.Close()
+	server := Setup()
+	defer Teardown(server)
 
 	for i := 0; i < 10; i++ {
 		http.Get(fmt.Sprintf("%s/", server.URL))
