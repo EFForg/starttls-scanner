@@ -191,6 +191,6 @@ func TestPutTokenTwice(t *testing.T) {
 	}
 	domain, err := database.UseToken(data.Token)
 	if domain == data.Domain {
-		t.Errorf("UseToken should not have succeeded with old token!\n", domain, data.Domain)
+		t.Errorf("UseToken should not have succeeded with old token!\n")
 	}
 }
