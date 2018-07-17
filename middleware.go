@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -24,6 +25,10 @@ func middleware(mux *http.ServeMux) http.Handler {
 }
 
 func throttleHandler(period time.Duration, limit int64, f http.Handler) http.Handler {
+	if flag.Lookup("test.v") != nil {
+		// Don't throttle tests
+		return f
+	}
 	rateLimitStore := memory.NewStore()
 	rate := limiter.Rate{
 		Period: period,

@@ -32,17 +32,3 @@ func TestPanicRecovery(t *testing.T) {
 func panickingHandler(w http.ResponseWriter, r *http.Request) {
 	panic(fmt.Errorf("oh no"))
 }
-
-func TestThrottleByIP(t *testing.T) {
-	for i := 0; i < 10; i++ {
-		http.Get(fmt.Sprintf("%s/", server.URL))
-	}
-	resp, err := http.Get(fmt.Sprintf("%s/", server.URL))
-
-	if err != nil {
-		t.Errorf("Rate limit request failed: %s\n", err)
-	}
-	if resp.StatusCode != http.StatusTooManyRequests {
-		t.Errorf("Expected server to respond with 429, got %d", resp.StatusCode)
-	}
-}
