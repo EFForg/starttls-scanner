@@ -16,10 +16,10 @@ func TestPanicRecovery(t *testing.T) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/panic", panickingHandler)
-	server := httptest.NewServer(registerHandlers(api, mux))
-	defer server.Close()
+	panicServer := httptest.NewServer(registerHandlers(api, mux))
+	defer panicServer.Close()
 
-	resp, err := http.Get(fmt.Sprintf("%s/panic", server.URL))
+	resp, err := http.Get(fmt.Sprintf("%s/panic", panicServer.URL))
 
 	if err != nil {
 		t.Errorf("Request to panic endpoint failed: %s\n", err)
@@ -34,9 +34,6 @@ func panickingHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func TestThrottleByIP(t *testing.T) {
-	server := Setup()
-	defer Teardown(server)
-
 	for i := 0; i < 10; i++ {
 		http.Get(fmt.Sprintf("%s/", server.URL))
 	}

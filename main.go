@@ -2,13 +2,11 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"time"
 
@@ -18,13 +16,6 @@ import (
 	"github.com/getsentry/raven-go"
 	_ "github.com/joho/godotenv/autoload"
 )
-
-func validPort(port string) (string, error) {
-	if _, err := strconv.Atoi(port); err != nil {
-		return "", fmt.Errorf("Given portstring %s is invalid", port)
-	}
-	return fmt.Sprintf(":%s", port), nil
-}
 
 func pingHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)

@@ -22,6 +22,7 @@ import (
 // Workflow tests against REST API.
 
 var api *API
+var server *httptest.Server
 
 func mockCheckPerform(message string) func(API, string) (checker.DomainResult, error) {
 	return func(api API, domain string) (checker.DomainResult, error) {
@@ -64,43 +65,24 @@ func TestMain(m *testing.M) {
 		CheckDomain: mockCheckPerform("testequal"),
 		List:        mockList{domains: fakeList},
 		Emailer:     mockEmailer{},
+		DontScan:    map[string]bool{"dontscan.com": true},
 	}
+	mux := http.NewServeMux()
+	server = httptest.NewServer(registerHandlers(api, mux))
+	defer server.Close()
 	code := m.Run()
-	api.Database.ClearTables()
 	os.Exit(code)
 }
 
-func TestInvalidPort(t *testing.T) {
-	portString, err := validPort("8000")
-	if err != nil {
-		t.Fatalf("Should not have errored on valid string: %v", err)
-	}
-	if portString != ":8000" {
-		t.Fatalf("Expected portstring be :8000 instead of %s", portString)
-	}
-	portString, err = validPort("80a")
-	if err == nil {
-		t.Fatalf("Expected error on invalid port")
-	}
-}
-
-// Helper function to mock a request to the server via https.
-// Returns http.Response resulting from specified handler.
-func testRequest(method string, path string, data url.Values, handler apiHandler) *http.Response {
-	req := httptest.NewRequest(method, fmt.Sprintf("http://localhost:8080/%s", path), strings.NewReader(data.Encode()))
-	if data != nil {
-		req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	}
-	w := httptest.NewRecorder()
-	apiWrapper(handler)(w, req)
-	return w.Result()
+func Teardown() {
+	api.Database.ClearTables()
 }
 
 func validQueueData(scan bool) url.Values {
 	data := url.Values{}
 	data.Set("domain", "eff.org")
 	if scan {
-		testRequest("POST", "/api/scan", data, api.Scan)
+		http.PostForm(server.URL+"/api/scan", data)
 	}
 	data.Set("email", "testing@fake-email.org")
 	data.Add("hostnames", ".eff.org")
@@ -109,11 +91,12 @@ func validQueueData(scan bool) url.Values {
 }
 
 func TestGetDomainHidesEmail(t *testing.T) {
-	requestData := validQueueData(true)
-	testRequest("POST", "/api/queue", requestData, api.Queue)
+	defer Teardown()
 
-	path := fmt.Sprintf("/api/queue?domain=%s", requestData.Get("domain"))
-	resp := testRequest("GET", path, nil, api.Queue)
+	requestData := validQueueData(true)
+	http.PostForm(server.URL+"/api/queue", requestData)
+
+	resp, _ := http.Get(server.URL + "/api/queue?domain=" + requestData.Get("domain"))
 
 	// Check to see domain JSON hides email
 	domainBody, _ := ioutil.ReadAll(resp.Body)
@@ -123,8 +106,11 @@ func TestGetDomainHidesEmail(t *testing.T) {
 }
 
 func TestQueueDomainHidesToken(t *testing.T) {
+	defer Teardown()
+
 	requestData := validQueueData(true)
-	resp := testRequest("POST", "/api/queue", requestData, api.Queue)
+	resp, _ := http.PostForm(server.URL+"/api/queue", requestData)
+
 	token, err := api.Database.GetTokenByDomain(requestData.Get("domain"))
 	if err != nil {
 		t.Fatal(err)
@@ -139,9 +125,12 @@ func TestQueueDomainHidesToken(t *testing.T) {
 // Requests domain to be queued, and validates corresponding e-mail token.
 // Domain status should then be updated to "queued".
 func TestBasicQueueWorkflow(t *testing.T) {
+	defer Teardown()
+
 	// 1. Request to be queued
 	queueDomainPostData := validQueueData(true)
-	resp := testRequest("POST", "/api/queue", queueDomainPostData, api.Queue)
+	resp, _ := http.PostForm(server.URL+"/api/queue", queueDomainPostData)
+
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("POST to api/queue failed with error %d", resp.StatusCode)
 	}
@@ -150,8 +139,9 @@ func TestBasicQueueWorkflow(t *testing.T) {
 	}
 
 	// 2. Request queue status
-	queueDomainGetPath := fmt.Sprintf("/api/queue?domain=%s", queueDomainPostData.Get("domain"))
-	resp = testRequest("GET", queueDomainGetPath, nil, api.Queue)
+	queueDomainGetPath := server.URL + "/api/queue?domain=" + queueDomainPostData.Get("domain")
+	resp, _ = http.Get(queueDomainGetPath)
+
 	// 2-T. Check to see domain status was initialized to 'unvalidated'
 	domainBody, _ := ioutil.ReadAll(resp.Body)
 	domainData := db.DomainData{}
@@ -173,7 +163,11 @@ func TestBasicQueueWorkflow(t *testing.T) {
 	}
 	tokenRequestData := url.Values{}
 	tokenRequestData.Set("token", token)
-	resp = testRequest("POST", "/api/validate", tokenRequestData, api.Validate)
+	resp, err = http.PostForm(server.URL+"/api/validate", tokenRequestData)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// 3-T. Ensure response body contains domain name
 	domainBody, _ = ioutil.ReadAll(resp.Body)
 	var responseObj map[string]interface{}
@@ -186,13 +180,14 @@ func TestBasicQueueWorkflow(t *testing.T) {
 	}
 
 	// 3-T2. Ensure double-validation does not work.
-	resp = testRequest("POST", "/api/validate", tokenRequestData, api.Validate)
+	resp, _ = http.PostForm(server.URL+"/api/validate", tokenRequestData)
 	if resp.StatusCode != 400 {
 		t.Errorf("Validation token shouldn't be able to be used twice!")
 	}
 
 	// 4. Request queue status again
-	resp = testRequest("GET", queueDomainGetPath, nil, api.Queue)
+	resp, _ = http.Get(queueDomainGetPath)
+
 	// 4-T. Check to see domain status was updated to "queued" after valid token redemption
 	domainBody, _ = ioutil.ReadAll(resp.Body)
 	err = json.Unmarshal(domainBody, &APIResponse{Response: &domainData})
@@ -205,47 +200,57 @@ func TestBasicQueueWorkflow(t *testing.T) {
 }
 
 func TestQueueWithoutHostnames(t *testing.T) {
+	defer Teardown()
+
 	data := url.Values{}
 	data.Set("domain", "eff.org")
 	data.Set("email", "testing@fake-email.org")
-	resp := testRequest("POST", "/api/queue", data, api.Queue)
+	resp, _ := http.PostForm(server.URL+"/api/queue", data)
+
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("POST to api/queue should have failed with error %d", http.StatusBadRequest)
 	}
 }
 
 func TestQueueWithoutScan(t *testing.T) {
-	api.Database.ClearTables()
+	defer Teardown()
+
 	requestData := validQueueData(false)
-	resp := testRequest("POST", "/api/queue", requestData, api.Queue)
+	resp, _ := http.PostForm(server.URL+"/api/queue", requestData)
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("POST to api/queue should have failed with error %d", resp.StatusCode)
 	}
 }
 
 func TestQueueInvalidDomain(t *testing.T) {
+	defer Teardown()
+
 	requestData := validQueueData(true)
 	requestData.Add("hostnames", "banana")
-	resp := testRequest("POST", "/api/queue", requestData, api.Queue)
+	resp, _ := http.PostForm(server.URL+"/api/queue", requestData)
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("Expected POST to api/queue to fail.")
 	}
 }
 
 func TestQueueEmptyHostname(t *testing.T) {
+	defer Teardown()
+
 	// The HTML form will submit hostnames fields left blank as empty strings.
 	requestData := validQueueData(true)
 	requestData.Add("hostnames", "")
-	resp := testRequest("POST", "/api/queue", requestData, api.Queue)
+	resp, _ := http.PostForm(server.URL+"/api/queue", requestData)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("Expected empty hostname submissions to be filtered out.")
 	}
 }
 
 func TestQueueTwice(t *testing.T) {
+	defer Teardown()
+
 	// 1. Request to be queued
 	requestData := validQueueData(true)
-	resp := testRequest("POST", "/api/queue", requestData, api.Queue)
+	resp, _ := http.PostForm(server.URL+"/api/queue", requestData)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("POST to api/queue failed with error %d", resp.StatusCode)
 	}
@@ -257,7 +262,7 @@ func TestQueueTwice(t *testing.T) {
 	}
 
 	// 3. Request to be queued again.
-	resp = testRequest("POST", "/api/queue", requestData, api.Queue)
+	resp, _ = http.PostForm(server.URL+"/api/queue", requestData)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("POST to api/queue failed with error %d", resp.StatusCode)
 	}
@@ -265,25 +270,15 @@ func TestQueueTwice(t *testing.T) {
 	// 4. Old token shouldn't work.
 	requestData = url.Values{}
 	requestData.Set("token", token)
-	resp = testRequest("POST", "/api/validate", requestData, api.Validate)
+	resp, _ = http.PostForm(server.URL+"/api/validate", requestData)
 	if resp.StatusCode != 400 {
 		t.Errorf("Old validation token shouldn't work.")
 	}
 }
 
-func TestPolicyCheck(t *testing.T) {
-	result := api.policyCheck("eff.org")
-	if result.Status != checker.Success {
-		t.Errorf("Check should have succeeded.")
-	}
-	result = api.policyCheck("failmail.com")
-	if result.Status != checker.Failure {
-		t.Errorf("Check should have failed.")
-	}
-}
-
 func TestPolicyCheckWithQueuedDomain(t *testing.T) {
-	api.Database.ClearTables()
+	defer Teardown()
+
 	domainData := db.DomainData{
 		Name:  "example.com",
 		Email: "postmaster@example.com",
@@ -306,11 +301,12 @@ func TestPolicyCheckWithQueuedDomain(t *testing.T) {
 // Requests a scan for a particular domain, and
 // makes sure that the scan is persisted correctly in DB across requests.
 func TestBasicScan(t *testing.T) {
-	api.Database.ClearTables()
+	defer Teardown()
+
 	// Request a scan!
 	data := url.Values{}
 	data.Set("domain", "eff.org")
-	resp := testRequest("POST", "/api/scan", data, api.Scan)
+	resp, _ := http.PostForm(server.URL+"/api/scan", data)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("POST to api/scan failed with error %d", resp.StatusCode)
 	}
@@ -330,7 +326,7 @@ func TestBasicScan(t *testing.T) {
 	}
 
 	// Check to see that scan results persisted.
-	resp = testRequest("GET", "api/scan?domain=eff.org", nil, api.Scan)
+	resp, _ = http.Get(server.URL + "/api/scan?domain=eff.org")
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET api/scan?domain=eff.org failed with error %d", resp.StatusCode)
 	}
@@ -354,24 +350,26 @@ func TestBasicScan(t *testing.T) {
 }
 
 func TestDontScanList(t *testing.T) {
-	api.DontScan = map[string]bool{"dontscan.com": true}
+	defer Teardown()
+
 	data := url.Values{}
 	data.Set("domain", "dontscan.com")
-	resp := testRequest("POST", "/api/scan", data, api.Scan)
+	resp, _ := http.PostForm(server.URL+"/api/scan", data)
 	if resp.StatusCode != http.StatusTooManyRequests {
 		t.Fatalf("GET api/scan?domain=dontscan.com should have failed with %d", resp.StatusCode)
 	}
 }
 
 func TestScanCached(t *testing.T) {
-	api.Database.ClearTables()
+	defer Teardown()
+
 	data := url.Values{}
 	data.Set("domain", "eff.org")
-	testRequest("POST", "/api/scan", data, api.Scan)
+	http.PostForm(server.URL+"/api/scan", data)
 	original, _ := api.CheckDomain(*api, "eff.org")
 	// Perform scan again, with different expected result.
 	api.CheckDomain = mockCheckPerform("somethingelse")
-	resp := testRequest("POST", "/api/scan", data, api.Scan)
+	resp, _ := http.PostForm(server.URL+"/api/scan", data)
 	scanBody, _ := ioutil.ReadAll(resp.Body)
 	scanData := db.ScanData{}
 	// Since scan occurred recently, we should have returned the cached OG response.
