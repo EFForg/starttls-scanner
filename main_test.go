@@ -69,6 +69,6 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func Teardown() {
+func teardown() {
 	api.Database.ClearTables()
 }

@@ -8,7 +8,7 @@ import (
 )
 
 func TestPolicyCheck(t *testing.T) {
-	defer Teardown()
+	defer teardown()
 
 	result := api.policyCheck("eff.org")
 	if result.Status != checker.Success {
@@ -21,7 +21,7 @@ func TestPolicyCheck(t *testing.T) {
 }
 
 func TestPolicyCheckWithQueuedDomain(t *testing.T) {
-	defer Teardown()
+	defer teardown()
 
 	domainData := db.DomainData{
 		Name:  "example.com",

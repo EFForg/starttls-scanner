@@ -24,7 +24,7 @@ func validQueueData(scan bool) url.Values {
 }
 
 func TestGetDomainHidesEmail(t *testing.T) {
-	defer Teardown()
+	defer teardown()
 
 	requestData := validQueueData(true)
 	http.PostForm(server.URL+"/api/queue", requestData)
@@ -39,7 +39,7 @@ func TestGetDomainHidesEmail(t *testing.T) {
 }
 
 func TestQueueDomainHidesToken(t *testing.T) {
-	defer Teardown()
+	defer teardown()
 
 	requestData := validQueueData(true)
 	resp, _ := http.PostForm(server.URL+"/api/queue", requestData)
@@ -58,7 +58,7 @@ func TestQueueDomainHidesToken(t *testing.T) {
 // Requests domain to be queued, and validates corresponding e-mail token.
 // Domain status should then be updated to "queued".
 func TestBasicQueueWorkflow(t *testing.T) {
-	defer Teardown()
+	defer teardown()
 
 	// 1. Request to be queued
 	queueDomainPostData := validQueueData(true)
@@ -133,7 +133,7 @@ func TestBasicQueueWorkflow(t *testing.T) {
 }
 
 func TestQueueWithoutHostnames(t *testing.T) {
-	defer Teardown()
+	defer teardown()
 
 	data := url.Values{}
 	data.Set("domain", "eff.org")
@@ -146,7 +146,7 @@ func TestQueueWithoutHostnames(t *testing.T) {
 }
 
 func TestQueueWithoutScan(t *testing.T) {
-	defer Teardown()
+	defer teardown()
 
 	requestData := validQueueData(false)
 	resp, _ := http.PostForm(server.URL+"/api/queue", requestData)
@@ -156,7 +156,7 @@ func TestQueueWithoutScan(t *testing.T) {
 }
 
 func TestQueueInvalidDomain(t *testing.T) {
-	defer Teardown()
+	defer teardown()
 
 	requestData := validQueueData(true)
 	requestData.Add("hostnames", "banana")
@@ -167,7 +167,7 @@ func TestQueueInvalidDomain(t *testing.T) {
 }
 
 func TestQueueEmptyHostname(t *testing.T) {
-	defer Teardown()
+	defer teardown()
 
 	// The HTML form will submit hostnames fields left blank as empty strings.
 	requestData := validQueueData(true)
@@ -179,7 +179,7 @@ func TestQueueEmptyHostname(t *testing.T) {
 }
 
 func TestQueueTwice(t *testing.T) {
-	defer Teardown()
+	defer teardown()
 
 	// 1. Request to be queued
 	requestData := validQueueData(true)

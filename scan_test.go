@@ -15,7 +15,7 @@ import (
 // Requests a scan for a particular domain, and
 // makes sure that the scan is persisted correctly in DB across requests.
 func TestBasicScan(t *testing.T) {
-	defer Teardown()
+	defer teardown()
 
 	// Request a scan!
 	data := url.Values{}
@@ -64,7 +64,7 @@ func TestBasicScan(t *testing.T) {
 }
 
 func TestDontScanList(t *testing.T) {
-	defer Teardown()
+	defer teardown()
 
 	data := url.Values{}
 	data.Set("domain", "dontscan.com")
@@ -75,7 +75,7 @@ func TestDontScanList(t *testing.T) {
 }
 
 func TestScanCached(t *testing.T) {
-	defer Teardown()
+	defer teardown()
 
 	data := url.Values{}
 	data.Set("domain", "eff.org")
