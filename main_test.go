@@ -48,7 +48,7 @@ func (e mockEmailer) SendValidation(domainInfo *db.DomainData, token string) err
 
 // Load env. vars, initialize DB hook, and tests API
 func TestMain(m *testing.M) {
-	godotenv.Load(".env.test")
+	godotenv.Overload(".env.test")
 	cfg, err := db.LoadEnvironmentVariables()
 	if err != nil {
 		log.Fatal(err)

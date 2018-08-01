@@ -30,7 +30,7 @@ func initTestDb() *db.SQLDatabase {
 }
 
 func TestMain(m *testing.M) {
-	godotenv.Load("../.env.test")
+	godotenv.Overload("../.env.test")
 	database = initTestDb()
 	code := m.Run()
 	err := database.ClearTables()
