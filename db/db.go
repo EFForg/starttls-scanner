@@ -102,12 +102,7 @@ var configDefaults = map[string]string{
 func getEnvOrDefault(varName string) string {
 	envVar := os.Getenv(varName)
 	if len(envVar) == 0 {
-		if flag.Lookup("test.v") != nil && varName == "DB_NAME" {
-			// Use a different default db name when testing so we don't accidentally wipe the default db
-			envVar = configDefaults["TEST_DB_NAME"]
-		} else {
-			envVar = configDefaults[varName]
-		}
+		envVar = configDefaults[varName]
 	}
 	return envVar
 }
@@ -124,6 +119,10 @@ func LoadEnvironmentVariables() (Config, error) {
 		DbName:        getEnvOrDefault("DB_NAME"),
 		DbUsername:    getEnvOrDefault("DB_USERNAME"),
 		DbPass:        getEnvOrDefault("DB_PASSWORD"),
+	}
+	if flag.Lookup("test.v") != nil {
+		// Avoid accidentally wiping the default db during tests.
+		config.DbName = getEnvOrDefault("TEST_DB_NAME")
 	}
 	return config, nil
 }
