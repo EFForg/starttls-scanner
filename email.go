@@ -201,8 +201,11 @@ func handleSESNotification(database db.Database) func(http.ResponseWriter, *http
 		}
 
 		for _, recipient := range data.recipients {
-			tags := map[string]string{"email": recipient.EmailAddress}
-			raven.CaptureMessage("Received SES complaint notification", tags)
+			tags := map[string]string{
+				"email":             recipient.EmailAddress,
+				"notification_type": data.reason,
+			}
+			raven.CaptureMessage("Received SES notification", tags)
 
 			err = database.PutBlacklistedEmail(recipient.EmailAddress, data.reason, data.timestamp)
 			if err != nil {
