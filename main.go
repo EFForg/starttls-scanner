@@ -107,5 +107,6 @@ func main() {
 		DontScan:    loadDontScan(),
 		Emailer:     emailConfig,
 	}
+	go validator(&api.Database, &api.List)
 	ServePublicEndpoints(&api, &cfg)
 }
