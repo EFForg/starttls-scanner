@@ -30,9 +30,23 @@ func TestRequireMissingEnvPanics(t *testing.T) {
 }
 
 func TestRequireEnvConfig(t *testing.T) {
+	requiredVars := map[string]string{
+		"SMTP_USERNAME":         "",
+		"SMTP_PASSWORD":         "",
+		"SMTP_ENDPOINT":         "",
+		"SMTP_PORT":             "",
+		"SMTP_FROM_ADDRESS":     "",
+		"FRONTEND_WEBSITE_LINK": ""}
+	for varName := range requiredVars {
+		requiredVars[varName] = os.Getenv(varName)
+		os.Setenv(varName, "")
+	}
 	_, err := makeEmailConfigFromEnv(api.Database)
 	if err == nil {
 		t.Errorf("should have received multiple error from unset env vars")
+	}
+	for varName, varValue := range requiredVars {
+		os.Setenv(varName, varValue)
 	}
 }
 
