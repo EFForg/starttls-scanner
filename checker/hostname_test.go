@@ -35,7 +35,6 @@ func createCert(keyData string, commonName string) string {
 		NotAfter:     time.Now().Add(time.Minute),
 		IsCA:         true,
 		DNSNames:     []string{commonName},
-		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
 	}
 	certDER, _ := x509.CreateCertificate(rand.Reader, &template, &template, &(privKey.PublicKey), privKey)
 	// 3. Convert cert to PEM format (for consumption by crypto/tls)
