@@ -127,18 +127,18 @@ type blacklistRequest struct {
 	reason     string
 	timestamp  string
 	recipients Recipients
-	raw        rawSNSMessages
+	raw        rawSNSMessage
 }
 
-type rawSNSMessages string
+type rawSNSMessage string
 
 // Class satisfies raven's Interface interface so we can send this as extra context.
 // https://github.com/getsentry/raven-go/issues/125
-func (r rawSNSMessages) Class() string {
+func (r rawSNSMessage) Class() string {
 	return "extra"
 }
 
-func (r rawSNSMessages) MarshalJSON() ([]byte, error) {
+func (r rawSNSMessage) MarshalJSON() ([]byte, error) {
 	return []byte(r), nil
 }
 
