@@ -1,14 +1,46 @@
 package checker
 
 import (
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
+	"math/big"
 	"net"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mhale/smtpd"
 )
+
+func TestMain(m *testing.M) {
+	certString = createCert(key)
+	code := m.Run()
+	os.Exit(code)
+}
+
+// Code follows pattern from crypto/tls/generate_cert.go
+// to generate a cert from a PEM-encoded RSA private key.
+func createCert(keyData string) string {
+	// 1. Convert privkey from PEM to DER.
+	block, _ := pem.Decode([]byte(key))
+	privKey, _ := x509.ParsePKCS1PrivateKey(block.Bytes)
+	// 2. Generate cert with private key.
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(0),
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(time.Minute),
+		IsCA:         true,
+		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+	}
+	certDER, _ := x509.CreateCertificate(rand.Reader, &template, &template, &(privKey.PublicKey), privKey)
+	// 3. Convert cert to PEM format (for consumption by crypto/tls)
+	b := pem.Block{Type: "CERTIFICATE", Bytes: certDER}
+	certPEM := pem.EncodeToMemory(&b)
+	return string(certPEM)
+}
 
 func TestPolicyMatch(t *testing.T) {
 	var tests = []struct {
@@ -254,21 +286,7 @@ func smtpListenAndServe(t *testing.T, tlsConfig *tls.Config) net.Listener {
 
 func noopHandler(_ net.Addr, _ string, _ []string, _ []byte) {}
 
-// Commands to generate the self-signed certificate below:
-//	openssl req -new -key server.key -out server.csr
-//	openssl x509 -req -in server.csr -signkey server.key -out server.crt
-
-const certString = `-----BEGIN CERTIFICATE-----
-MIIBkDCB+gIJAP/G75+MvzSQMA0GCSqGSIb3DQEBBQUAMA0xCzAJBgNVBAYTAlVT
-MB4XDTE4MDcyNjE2NDM0MloXDTE4MDgyNTE2NDM0MlowDTELMAkGA1UEBhMCVVMw
-gZ8wDQYJKoZIhvcNAQEBBQADgY0AMIGJAoGBALsGFO2tmSAPtDR8YccGXhNGsQU7
-YqY33cxVl1OhvZLefBawVSho/0nHhaxDQX4zA/acpNLnYu9MKo/IP1UWn1dLnYy2
-rpzKUr5ROQoBCdJW7XiDl1LSABsz3XjPE7U0Wn/0LiIKLSpopbM8IYsIgSiqRvv4
-eVhB6QGQkdHdPOrdAgMBAAEwDQYJKoZIhvcNAQEFBQADgYEAIbh+2deYaUdQ2w9Z
-h/HDykuWhf452E/QGx2ltiEB4hj/ggxn5Hho0W5+nAjc3HRa16B0UvmyBSxSFG47
-8E0+wATR37GHenDLtTgIAEv3Ax7ojTsSYI7ssm+USkhd8GfeCzNWYGO4KAUuWS1r
-CFPY0q3dB4ltPdEVfgGNZYTRqIU=
------END CERTIFICATE-----`
+var certString string
 
 const key = `-----BEGIN RSA PRIVATE KEY-----
 MIICXQIBAAKBgQC7BhTtrZkgD7Q0fGHHBl4TRrEFO2KmN93MVZdTob2S3nwWsFUo
