@@ -119,6 +119,7 @@ func (c emailConfig) sendEmail(subject string, body string, address string) erro
 		c.sender, []string{address}, []byte(message))
 }
 
+// Recipients lists the email addresses that have triggered a bounce or complaint.
 type Recipients []struct {
 	EmailAddress string `json:"emailAddress"`
 }
