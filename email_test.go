@@ -70,6 +70,18 @@ func TestParseSESNotification(t *testing.T) {
 	}
 }
 
+func TestSendEmailToBlacklistedAddressFails(t *testing.T) {
+	err := api.Database.PutBlacklistedEmail("fail@example.com", "bounce", "2017-07-21T18:47:13.498Z")
+	if err != nil {
+		t.Errorf("PutBlacklistedEmail failed: %v\n", err)
+	}
+	c := &emailConfig{database: api.Database}
+	err = c.sendEmail("Subject", "Body", "fail@example.com")
+	if !strings.Contains(err.Error(), "blacklisted") {
+		t.Error("attempting to send mail to blacklisted address should fail")
+	}
+}
+
 func TestHandleSESNotification(t *testing.T) {
 	defer teardown()
 
