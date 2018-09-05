@@ -204,7 +204,7 @@ func (db SQLDatabase) PutBlacklistedEmail(email string, reason string, timestamp
 // IsBlacklistedEmail returns true iff we've blacklisted the passed email address for sending.
 func (db SQLDatabase) IsBlacklistedEmail(email string) (bool, error) {
 	var count int
-	row := db.conn.QueryRow("SELECT COUNT(*) FROM blacklisted_emails")
+	row := db.conn.QueryRow("SELECT COUNT(*) FROM blacklisted_emails WHERE email=$1", email)
 	err := row.Scan(&count)
 	if err != nil {
 		return false, err
