@@ -101,7 +101,7 @@ func main() {
 	}
 	emailConfig, err := makeEmailConfigFromEnv(db)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("couldn't connect to mailserver: %v\n======NOT SENDING EMAIL======", err)
 	}
 	list := policy.MakeUpdatedList()
 	api := API{
