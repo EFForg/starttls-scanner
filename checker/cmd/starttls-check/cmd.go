@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/EFForg/starttls-backend/checker"
 )
@@ -48,13 +49,45 @@ func main() {
 		flag.PrintDefaults()
 	}
 	domainStr := flag.String("domain", "", "Required: Domain to check TLS for.")
+	domainsFileStr := flag.String("domains", "", "Required: Domain to check TLS for.")
+	mtasts := flag.Bool("mtasts", false, "Whether to check for MTA-STS advertisement")
 	flag.Parse()
-	if *domainStr == "" {
+	if *domainStr == "" && *domainsFileStr == "" {
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
 
-	result := checker.CheckDomain(*domainStr, nil)
+	var result interface{}
+	if *mtasts && *domainsFileStr == "" {
+		singleResult := checker.CheckMTASTS(*domainStr)
+		fmt.Printf("%s,%t,%t\n",
+			singleResult.Domain,
+			singleResult.Support,
+			singleResult.Testing)
+		os.Exit(0)
+	} else if *domainStr != "" {
+		result = checker.CheckDomain(*domainStr, nil)
+	} else if *domainsFileStr != "" {
+		var list []interface{}
+		domains, _ := domainsFromFile(*domainsFileStr)
+		for _, domain := range domains {
+			var single interface{}
+			if *mtasts {
+				singleResult := checker.CheckMTASTS(domain)
+
+				fmt.Printf("%s,%t,%t\n",
+					singleResult.Domain,
+					singleResult.Support,
+					singleResult.Testing)
+				single = singleResult
+			} else {
+				single = checker.CheckDomain(domain, nil)
+			}
+			list = append(list, single)
+			time.Sleep(100 * time.Millisecond)
+		}
+		result = list
+	}
 	b, err := json.Marshal(result)
 	if err != nil {
 		fmt.Printf("%q", err)

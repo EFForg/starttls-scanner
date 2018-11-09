@@ -3,7 +3,9 @@ package checker
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net"
+	"net/http"
 	"strings"
 	"time"
 
@@ -132,6 +134,78 @@ func CheckDomain(domain string, mxHostnames []string) DomainResult {
 		hostnameLookup:    &dnsLookup{},
 		hostnameChecker:   &tlsChecker{},
 	})
+}
+
+type ResultMTASTS struct {
+	Domain      string
+	Error       bool
+	Support     bool
+	Testing     bool
+	MXHostnames []string
+}
+
+type keyValue struct {
+	key   string
+	value string
+}
+
+func getKeyValueLines(body string) ([]keyValue, error) {
+	if !strings.Contains(body, ":") || !strings.Contains(body, "mode") {
+		return nil, fmt.Errorf("Malformatted mta-sts")
+	}
+	lines := strings.Split(string(body), "\n")
+	result := make([]keyValue, 0)
+	for _, line := range lines {
+		line := strings.TrimSpace(line)
+		// ignore whitespace lines
+		if len(line) == 0 {
+			continue
+		}
+		words := strings.Split(line, ":")
+		if len(words) != 2 {
+			return result, fmt.Errorf("Malformatted txt")
+		}
+		result = append(result, keyValue{
+			key:   strings.TrimSpace(words[0]),
+			value: strings.TrimSpace(words[1]),
+		})
+	}
+	return result, nil
+}
+
+func CheckMTASTS(domain string) ResultMTASTS {
+	policyURL := fmt.Sprintf("https://mta-sts.%s/.well-known/mta-sts.txt", domain)
+	resp, err := http.Get(policyURL)
+	if err != nil {
+		return ResultMTASTS{Domain: domain, Support: false}
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return ResultMTASTS{Domain: domain, Error: true, Support: false}
+	}
+	// fill in result
+	result := ResultMTASTS{
+		Domain:      domain,
+		Support:     true,
+		Error:       false,
+		MXHostnames: make([]string, 0)}
+	values, err := getKeyValueLines(string(body))
+	if err != nil {
+		return ResultMTASTS{Domain: domain, Support: false}
+
+	}
+	for _, pair := range values {
+		if pair.key == "mode" {
+			if pair.value == "testing" {
+				result.Testing = true
+			}
+		}
+		if pair.key == "mx" {
+			result.MXHostnames = append(result.MXHostnames, pair.value)
+		}
+	}
+	return result
 }
 
 func performCheck(query DomainQuery) DomainResult {
