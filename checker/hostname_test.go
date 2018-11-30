@@ -1,6 +1,7 @@
 package checker
 
 import (
+	"bufio"
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
@@ -193,6 +194,48 @@ func TestSuccessWithFakeCA(t *testing.T) {
 		},
 	}
 	compareStatuses(t, expected, result)
+}
+
+func TestSuccessWithDelayedGreeting(t *testing.T) {
+	ln, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go ServeDelayedGreeting(ln, t)
+
+	client, err := smtpDialWithTimeout(ln.Addr().String(), testTimeout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.Close()
+}
+
+func ServeDelayedGreeting(ln net.Listener, t *testing.T) {
+	conn, err := ln.Accept()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+
+	time.Sleep(2 * time.Second)
+	_, err = conn.Write([]byte("220 localhost ESMTP\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	line, err := bufio.NewReader(conn).ReadString('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(line, "EHLO localhost") {
+		t.Fatalf("unexpected response from checker: %s", line)
+	}
+
+	time.Sleep(2 * time.Second)
+	_, err = conn.Write([]byte("250 HELO\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestFailureWithBadHostname(t *testing.T) {
