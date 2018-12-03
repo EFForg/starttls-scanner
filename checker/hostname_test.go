@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-const testTimeout = time.Second
+const testTimeout = 250 * time.Millisecond
 
 // Code follows pattern from crypto/tls/generate_cert.go
 // to generate a cert from a PEM-encoded RSA private key.
@@ -196,6 +196,8 @@ func TestSuccessWithFakeCA(t *testing.T) {
 	compareStatuses(t, expected, result)
 }
 
+// Tests that the checker successfully initiates an SMTP connection with mail
+// servers that use a greet delay.
 func TestSuccessWithDelayedGreeting(t *testing.T) {
 	ln, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
@@ -218,7 +220,7 @@ func ServeDelayedGreeting(ln net.Listener, t *testing.T) {
 	}
 	defer conn.Close()
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(testTimeout + 100*time.Millisecond)
 	_, err = conn.Write([]byte("220 localhost ESMTP\n"))
 	if err != nil {
 		t.Fatal(err)
@@ -231,7 +233,6 @@ func ServeDelayedGreeting(ln net.Listener, t *testing.T) {
 		t.Fatalf("unexpected response from checker: %s", line)
 	}
 
-	time.Sleep(2 * time.Second)
 	_, err = conn.Write([]byte("250 HELO\n"))
 	if err != nil {
 		t.Fatal(err)
