@@ -28,18 +28,18 @@ func TestParseTXT(t *testing.T) {
 
 func TestCheckMTASTSRecord(t *testing.T) {
 	tests := []struct {
-		txt []string
-		ok  bool
+		txt    []string
+		status CheckStatus
 	}{
-		{[]string{"v=STSv1; id=1234", "v=STSv1; id=5678"}, false},
-		{[]string{"v=STSv1; id=20171114T070707;"}, true},
-		{[]string{"v=STSv1; id=;"}, false},
-		{[]string{"v=STSv1; id=###;"}, false},
-		{[]string{"v=spf1 a -all"}, false},
+		{[]string{"v=STSv1; id=1234", "v=STSv1; id=5678"}, Failure},
+		{[]string{"v=STSv1; id=20171114T070707;"}, Success},
+		{[]string{"v=STSv1; id=;"}, Failure},
+		{[]string{"v=STSv1; id=###;"}, Failure},
+		{[]string{"v=spf1 a -all"}, Failure},
 	}
 	for _, test := range tests {
-		if err := checkMTASTSRecord(test.txt); (err != nil) == test.ok {
-			t.Errorf("checkMTASTSDNS(%v) = %v", test.txt, err)
+		if result := checkMTASTSRecord(test.txt); result.Status != test.status {
+			t.Errorf("checkMTASTSDNS(%v) = %v", test.txt, result)
 		}
 	}
 }

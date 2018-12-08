@@ -31,18 +31,20 @@ func parseTXT(record string) map[string]string {
 	return parsed
 }
 
-func checkMTASTSRecord(records []string) error {
+func checkMTASTSRecord(records []string) CheckResult {
+	result := CheckResult{Name: "mta-sts-txt"}
+
 	records = filterByPrefix(records, "v=STSv1")
 	if len(records) != 1 {
-		return fmt.Errorf("exactly 1 MTA-STS TXT record required, found %d", len(records))
+		return result.Failure("exactly 1 MTA-STS TXT record required, found %d", len(records))
 	}
 	record := parseTXT(records[0])
 
 	id_re := regexp.MustCompile("^[a-zA-Z0-9]+$")
 	if !id_re.MatchString(record["id"]) {
-		return fmt.Errorf("invalid id %s", record["id"])
+		return result.Failure("invalid id %s", record["id"])
 	}
-	return nil
+	return result.Success()
 }
 
 // func checkTLSRPTRecord(records []string) error {
@@ -59,11 +61,10 @@ func checkMTASTSRecord(records []string) error {
 // }
 //
 
-func checkMTASTS(domain string) error {
+func checkMTASTS(domain string) {
 	results, err := net.LookupTXT(fmt.Sprintf("_mta-sts.%s", domain))
 	if err != nil {
-		return err
+		return
 	}
-	err = checkMTASTSRecord(results)
-	return err
+	checkMTASTSRecord(results)
 }
