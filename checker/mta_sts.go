@@ -61,10 +61,16 @@ func checkMTASTSRecord(records []string) CheckResult {
 // }
 //
 
-func checkMTASTS(domain string) {
+func checkMTASTS(domain string) ResultGroup {
+	result := ResultGroup{
+		Status: Success,
+		Checks: make(map[string]CheckResult),
+	}
 	results, err := net.LookupTXT(fmt.Sprintf("_mta-sts.%s", domain))
 	if err != nil {
-		return
+		// @TODO return an failure, probably want to roll into check
+		return result
 	}
-	checkMTASTSRecord(results)
+	result.addCheck(checkMTASTSRecord(results))
+	return result
 }

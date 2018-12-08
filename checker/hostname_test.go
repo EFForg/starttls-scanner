@@ -88,7 +88,7 @@ func TestPolicyMatch(t *testing.T) {
 func TestNoConnection(t *testing.T) {
 	result := CheckHostname("", "example.com")
 
-	expected := HostnameResult{
+	expected := ResultGroup{
 		Status: 3,
 		Checks: map[string]CheckResult{
 			"connectivity": {"connectivity", 3, nil},
@@ -103,7 +103,7 @@ func TestNoTLS(t *testing.T) {
 
 	result := CheckHostname("", ln.Addr().String())
 
-	expected := HostnameResult{
+	expected := ResultGroup{
 		Status: 2,
 		Checks: map[string]CheckResult{
 			"connectivity": {"connectivity", 0, nil},
@@ -123,7 +123,7 @@ func TestSelfSigned(t *testing.T) {
 
 	result := CheckHostname("", ln.Addr().String())
 
-	expected := HostnameResult{
+	expected := ResultGroup{
 		Status: 2,
 		Checks: map[string]CheckResult{
 			"connectivity": {"connectivity", 0, nil},
@@ -149,7 +149,7 @@ func TestNoTLS12(t *testing.T) {
 
 	result := CheckHostname("", ln.Addr().String())
 
-	expected := HostnameResult{
+	expected := ResultGroup{
 		Status: 2,
 		Checks: map[string]CheckResult{
 			"connectivity": {"connectivity", 0, nil},
@@ -181,7 +181,7 @@ func TestSuccessWithFakeCA(t *testing.T) {
 	addrParts := strings.Split(ln.Addr().String(), ":")
 	port := addrParts[len(addrParts)-1]
 	result := CheckHostname("", "localhost:"+port)
-	expected := HostnameResult{
+	expected := ResultGroup{
 		Status: 0,
 		Checks: map[string]CheckResult{
 			"connectivity": {"connectivity", 0, nil},
@@ -213,7 +213,7 @@ func TestFailureWithBadHostname(t *testing.T) {
 	addrParts := strings.Split(ln.Addr().String(), ":")
 	port := addrParts[len(addrParts)-1]
 	result := CheckHostname("", "localhost:"+port)
-	expected := HostnameResult{
+	expected := ResultGroup{
 		Status: 2,
 		Checks: map[string]CheckResult{
 			"connectivity": {"connectivity", 0, nil},
@@ -279,7 +279,7 @@ func containsCipherSuite(result []uint16, want uint16) bool {
 }
 
 // compareStatuses compares the status for the HostnameResult and each Check with a desired value
-func compareStatuses(t *testing.T, expected HostnameResult, result HostnameResult) {
+func compareStatuses(t *testing.T, expected ResultGroup, result HostnameResult) {
 	if result.Status != expected.Status {
 		t.Errorf("hostname status = %d, want %d", result.Status, expected.Status)
 	}

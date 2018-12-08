@@ -15,21 +15,21 @@ var mxLookup = map[string][]string{
 }
 
 // Fake hostname checks :)
-var hostnameResults = map[string]HostnameResult{
-	"noconnection": HostnameResult{
+var hostnameResults = map[string]ResultGroup{
+	"noconnection": ResultGroup{
 		Status: 3,
 		Checks: map[string]CheckResult{
 			"connectivity": {"connectivity", 3, nil},
 		},
 	},
-	"nostarttls": HostnameResult{
+	"nostarttls": ResultGroup{
 		Status: 2,
 		Checks: map[string]CheckResult{
 			"connectivity": {"connectivity", 0, nil},
 			"starttls":     {"starttls", 2, nil},
 		},
 	},
-	"nostarttlsconnect": HostnameResult{
+	"nostarttlsconnect": ResultGroup{
 		Status: 3,
 		Checks: map[string]CheckResult{
 			"connectivity": {"connectivity", 0, nil},
@@ -52,14 +52,20 @@ func (*mockLookup) lookupHostname(domain string) ([]string, error) {
 
 func (*mockChecker) checkHostname(domain string, hostname string) HostnameResult {
 	if result, ok := hostnameResults[hostname]; ok {
-		return result
+		return HostnameResult{ResultGroup: &result}
 	}
 	// by default return successful check
-	return HostnameResult{Status: 0, Checks: map[string]CheckResult{
-		"connectivity": {"connectivity", 0, nil},
-		"starttls":     {"starttls", 0, nil},
-		"certificate":  {"certificate", 0, nil},
-		"version":      {"version", 0, nil}}}
+	return HostnameResult{
+		ResultGroup: &ResultGroup{
+			Status: 0,
+			Checks: map[string]CheckResult{
+				"connectivity": {"connectivity", 0, nil},
+				"starttls":     {"starttls", 0, nil},
+				"certificate":  {"certificate", 0, nil},
+				"version":      {"version", 0, nil},
+			},
+		},
+	}
 }
 
 // Test helpers.

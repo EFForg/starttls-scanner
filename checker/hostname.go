@@ -12,19 +12,9 @@ import (
 
 // HostnameResult wraps the results of a security check against a particular hostname.
 type HostnameResult struct {
-	Domain   string                 `json:"domain"`
-	Hostname string                 `json:"hostname"`
-	Status   CheckStatus            `json:"status"`
-	Checks   map[string]CheckResult `json:"checks"`
-}
-
-// Returns result of specifiedcheck.
-// If called before that check occurs, returns false.
-func (h HostnameResult) checkSucceeded(checkName string) bool {
-	if result, ok := h.Checks[checkName]; ok {
-		return result.Status == Success
-	}
-	return false
+	*ResultGroup
+	Domain   string `json:"domain"`
+	Hostname string `json:"hostname"`
 }
 
 func (h HostnameResult) couldConnect() bool {
@@ -246,22 +236,17 @@ func checkTLSVersion(client *smtp.Client, hostname string) CheckResult {
 	return result.Success()
 }
 
-// Wrapping helper function to set the status of this hostname.
-func (h *HostnameResult) addCheck(checkResult CheckResult) {
-	h.Checks[checkResult.Name] = checkResult
-	// SetStatus sets HostnameResult's status to the most severe of any individual check
-	h.Status = SetStatus(h.Status, checkResult.Status)
-}
-
 // CheckHostname performs a series of checks against a hostname for an email domain.
 // `domain` is the mail domain that this server serves email for.
 // `hostname` is the hostname for this server.
 func CheckHostname(domain string, hostname string) HostnameResult {
 	result := HostnameResult{
-		Status:   Success,
 		Domain:   domain,
 		Hostname: hostname,
-		Checks:   make(map[string]CheckResult),
+		ResultGroup: &ResultGroup{
+			Status: Success,
+			Checks: make(map[string]CheckResult),
+		},
 	}
 
 	// Connect to the SMTP server and use that connection to perform as many checks as possible.

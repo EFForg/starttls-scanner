@@ -75,3 +75,25 @@ func (c CheckResult) Success() CheckResult {
 	c.Status = SetStatus(c.Status, Success)
 	return c
 }
+
+// ResultGroup wraps the results of a security check against a particular hostname.
+type ResultGroup struct {
+	Status CheckStatus            `json:"status"`
+	Checks map[string]CheckResult `json:"checks"`
+}
+
+// Returns result of specified check.
+// If called before that check occurs, returns false.
+func (r ResultGroup) checkSucceeded(checkName string) bool {
+	if result, ok := r.Checks[checkName]; ok {
+		return result.Status == Success
+	}
+	return false
+}
+
+// Wrapping helper function to set the status of this hostname.
+func (r *ResultGroup) addCheck(checkResult CheckResult) {
+	r.Checks[checkResult.Name] = checkResult
+	// SetStatus sets ResultGroup's status to the most severe of any individual check
+	r.Status = SetStatus(r.Status, checkResult.Status)
+}
