@@ -35,7 +35,7 @@ func TestGetKeyValuePairs(t *testing.T) {
 	}
 }
 
-func TestCheckMTASTSRecord(t *testing.T) {
+func TestValidateMTASTSRecord(t *testing.T) {
 	tests := []struct {
 		txt    []string
 		status CheckStatus
@@ -47,8 +47,24 @@ func TestCheckMTASTSRecord(t *testing.T) {
 		{[]string{"v=spf1 a -all"}, Failure},
 	}
 	for _, test := range tests {
-		if result := checkMTASTSRecord(test.txt); result.Status != test.status {
-			t.Errorf("checkMTASTSDNS(%v) = %v", test.txt, result)
+		result := validateMTASTSRecord(test.txt, CheckResult{})
+		if result.Status != test.status {
+			t.Errorf("validateMTASTSRecord(%v) = %v", test.txt, result)
+		}
+	}
+}
+
+func TestValidateMTASTSPolicyFile(t *testing.T) {
+	tests := []struct {
+		txt    string
+		status CheckStatus
+	}{
+		{"version: STSv1\nmode: enforce\nmax_age:100000\nmx: foo.example.com\nmx: bar.example.com\n", Success},
+	}
+	for _, test := range tests {
+		result := validateMTASTSPolicyFile(test.txt, CheckResult{})
+		if result.Status != test.status {
+			t.Errorf("validateMTASTSPolicyFile(%v) = %v", test.txt, result)
 		}
 	}
 }

@@ -10,8 +10,6 @@ import (
 	"strings"
 )
 
-// LookupTXT = net.LookupTXT
-
 type MTASTSResult struct {
 	Mode        string
 	MXHostnames []string
@@ -47,9 +45,16 @@ func getKeyValuePairs(record string, lineDelimiter string,
 	return parsed
 }
 
-func checkMTASTSRecord(records []string) CheckResult {
+func checkMTASTSRecord(domain string) CheckResult {
 	result := CheckResult{Name: "mta-sts-txt"}
+	records, err := net.LookupTXT(fmt.Sprintf("_mta-sts.%s", domain))
+	if err != nil {
+		return result.Failure("Couldn't find MTA-STS TXT record: %v", err)
+	}
+	return validateMTASTSRecord(records, result)
+}
 
+func validateMTASTSRecord(records []string, result CheckResult) CheckResult {
 	records = filterByPrefix(records, "v=STSv1")
 	if len(records) != 1 {
 		return result.Failure("exactly 1 MTA-STS TXT record required, found %d", len(records))
@@ -82,7 +87,11 @@ func checkMTASTSPolicyFile(domain string) CheckResult {
 		return result.Error("Couldn't read policy file: %v", err)
 	}
 
-	policy := getKeyValuePairs(string(body), "\n", ":")
+	return validateMTASTSPolicyFile(string(body), result)
+}
+
+func validateMTASTSPolicyFile(body string, result CheckResult) CheckResult {
+	policy := getKeyValuePairs(body, "\n", ":")
 
 	// Validate version
 	if policy["version"] != "STSv1" {
@@ -118,12 +127,7 @@ func checkMTASTS(domain string) ResultGroup {
 		Status: Success,
 		Checks: make(map[string]CheckResult),
 	}
-	results, err := net.LookupTXT(fmt.Sprintf("_mta-sts.%s", domain))
-	if err != nil {
-		// @TODO return a failure, probably want to roll into check
-		return result
-	}
-	result.addCheck(checkMTASTSRecord(results))
+	result.addCheck(checkMTASTSRecord(domain))
 	result.addCheck(checkMTASTSPolicyFile(domain))
 	// @TODO add a check to compare hostnames to those supplied by DNS
 	return result
