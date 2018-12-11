@@ -70,17 +70,24 @@ func validateMTASTSRecord(records []string, result CheckResult) CheckResult {
 
 func checkMTASTSPolicyFile(domain string) CheckResult {
 	result := CheckResult{Name: "policy_file"}
+	client := &http.Client{
+		// Don't follow redirects.
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 	policyURL := fmt.Sprintf("https://mta-sts.%s/.well-known/mta-sts.txt", domain)
-	resp, err := http.Get(policyURL)
-	// @TODO verify https? verify cert?
-	// @TODO don't follow redirect
-	// @TODO validate media type is 'text/plain'
+	resp, err := client.Get(policyURL)
 	if err != nil {
 		return result.Failure("Couldn't find policy file: %v", err)
 	}
 	if resp.StatusCode != 200 {
 		return result.Failure("Couldn't get policy file: %s", resp.Status)
 	}
+	// RFC says to check media type.
+	// if resp.Header["Content-Type"] != "text/plain" {
+	// 	return result.Error("Media type must be text/plain")
+	// }
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -115,7 +122,6 @@ func validateMTASTSPolicyFile(body string, result CheckResult) CheckResult {
 		return result.Error("max_age must be a positive integer <= 31557600")
 	}
 
-	// @TODO test with no mxs
 	// @TODO store the mxs
 	strings.Split(policy["mx"], " ")
 
