@@ -62,7 +62,7 @@ func TestValidateMTASTSPolicyFile(t *testing.T) {
 		{"version: STSv1\nmode: enforce\nmax_age:100000\nmx: foo.example.com\nmx: bar.example.com\n", Success},
 	}
 	for _, test := range tests {
-		result := validateMTASTSPolicyFile(test.txt, CheckResult{})
+		result, _ := validateMTASTSPolicyFile(test.txt, CheckResult{})
 		if result.Status != test.status {
 			t.Errorf("validateMTASTSPolicyFile(%v) = %v", test.txt, result)
 		}

@@ -10,12 +10,6 @@ import (
 	"strings"
 )
 
-type MTASTSResult struct {
-	Mode        string
-	MXHostnames []string
-	ResultGroup
-}
-
 func filterByPrefix(records []string, prefix string) []string {
 	filtered := []string{}
 	for _, elem := range records {
@@ -68,7 +62,7 @@ func validateMTASTSRecord(records []string, result CheckResult) CheckResult {
 	return result.Success()
 }
 
-func checkMTASTSPolicyFile(domain string) CheckResult {
+func checkMTASTSPolicyFile(domain string, hostnameResults map[string]HostnameResult) CheckResult {
 	result := CheckResult{Name: "policy_file"}
 	client := &http.Client{
 		// Don't follow redirects.
@@ -94,47 +88,67 @@ func checkMTASTSPolicyFile(domain string) CheckResult {
 		return result.Error("Couldn't read policy file: %v", err)
 	}
 
-	return validateMTASTSPolicyFile(string(body), result)
+	result, policy := validateMTASTSPolicyFile(string(body), result)
+	return validateMTASTSMXs(strings.Split(policy["mx"], " "), hostnameResults, result)
 }
 
-func validateMTASTSPolicyFile(body string, result CheckResult) CheckResult {
+func validateMTASTSPolicyFile(body string, result CheckResult) (CheckResult, map[string]string) {
 	policy := getKeyValuePairs(body, "\n", ":")
 
-	// Validate version
 	if policy["version"] != "STSv1" {
-		return result.Error("Policy version must be STSv1")
+		result.Error("Policy version must be STSv1")
 	}
 
-	// Validate mode
-	// @TODO store the mode
 	if policy["mode"] == "" {
-		return result.Error("Policy file must specify mode")
+		result.Error("Policy file must specify mode")
 	}
 	if m := policy["mode"]; m != "enforce" && m != "testing" && m != "none" {
-		return result.Error("Mode must be one of 'enforce', 'testing', or 'none', got %s", m)
+		result.Error("Mode must be one of 'enforce', 'testing', or 'none', got %s", m)
 	}
 
-	// Validate max age
 	if policy["max_age"] == "" {
-		return result.Error("Policy file must specify max_age")
+		result.Error("Policy file must specify max_age")
 	}
 	if i, err := strconv.Atoi(policy["max_age"]); err != nil || i <= 0 || i > 31557600 {
-		return result.Error("max_age must be a positive integer <= 31557600")
+		result.Error("max_age must be a positive integer <= 31557600")
 	}
 
-	// @TODO store the mxs
-	strings.Split(policy["mx"], " ")
-
-	return result.Success()
+	return result.Success(), policy
 }
 
-func checkMTASTS(domain string) ResultGroup {
+func validateMTASTSMXs(policy_file_mxs []string, dns_mxs map[string]HostnameResult,
+	result CheckResult) CheckResult {
+	for _, dns_mx := range dns_mxs {
+		if !dns_mx.couldConnect() {
+			// Ignore hostnames we couldn't connect to, they may be spam traps.
+			continue
+		}
+		if !containsString(policy_file_mxs, dns_mx.Hostname) {
+			result.Warning("%s appears in the DNS record but not the MTA-STS policy file",
+				dns_mx.Hostname)
+		} else if !dns_mx.couldSTARTTLS() {
+			result.Warning("%s appears in the DNS record and MTA-STS policy file, but doesn't support STARTTLS",
+				dns_mx.Hostname)
+		}
+	}
+	return result
+}
+
+func containsString(slice []string, str string) bool {
+	for _, candidate := range slice {
+		if candidate == str {
+			return true
+		}
+	}
+	return false
+}
+
+func checkMTASTS(domain string, hostnameResults map[string]HostnameResult) ResultGroup {
 	result := ResultGroup{
 		Status: Success,
 		Checks: make(map[string]CheckResult),
 	}
 	result.addCheck(checkMTASTSRecord(domain))
-	result.addCheck(checkMTASTSPolicyFile(domain))
-	// @TODO add a check to compare hostnames to those supplied by DNS
+	result.addCheck(checkMTASTSPolicyFile(domain, hostnameResults))
 	return result
 }
