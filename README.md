@@ -1,5 +1,8 @@
 # starttls-backend
 
+[![Build Status](https://travis-ci.com/EFForg/starttls-backend.svg?branch=master)](https://travis-ci.org/EFForg/starttls-backend)
+[![Coverage Status](https://coveralls.io/repos/github/EFForg/starttls-backend/badge.svg?branch=master)](https://coveralls.io/github/EFForg/starttls-backend?branch=master)
+
 ## Setup
 1. Install `go` and `postgres`.
 2. Download the project and copy the configuration file:
@@ -42,3 +45,6 @@ docker-compose exec app go test -v
 ```
 docker-compose exec app go test ./db -v
 ```
+
+### No-scan domains
+In case of complaints or abuse, we may not want to continually scan some domains. You can set the environment variable `DOMAIN_BLACKLIST` to point to a file with a list of newline-separated domains. Attempting to scan those domains from the public-facing website will result in error codes.

@@ -1,6 +1,7 @@
 package checker
 
 import (
+	"bufio"
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
@@ -21,6 +22,8 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 	os.Exit(code)
 }
+
+const testTimeout = 250 * time.Millisecond
 
 // Code follows pattern from crypto/tls/generate_cert.go
 // to generate a cert from a PEM-encoded RSA private key.
@@ -86,7 +89,7 @@ func TestPolicyMatch(t *testing.T) {
 }
 
 func TestNoConnection(t *testing.T) {
-	result := CheckHostname("", "example.com")
+	result := CheckHostname("", "example.com", testTimeout)
 
 	expected := ResultGroup{
 		Status: 3,
@@ -101,7 +104,7 @@ func TestNoTLS(t *testing.T) {
 	ln := smtpListenAndServe(t, &tls.Config{})
 	defer ln.Close()
 
-	result := CheckHostname("", ln.Addr().String())
+	result := CheckHostname("", ln.Addr().String(), testTimeout)
 
 	expected := ResultGroup{
 		Status: 2,
@@ -121,7 +124,7 @@ func TestSelfSigned(t *testing.T) {
 	ln := smtpListenAndServe(t, &tls.Config{Certificates: []tls.Certificate{cert}})
 	defer ln.Close()
 
-	result := CheckHostname("", ln.Addr().String())
+	result := CheckHostname("", ln.Addr().String(), testTimeout)
 
 	expected := ResultGroup{
 		Status: 2,
@@ -147,7 +150,7 @@ func TestNoTLS12(t *testing.T) {
 	})
 	defer ln.Close()
 
-	result := CheckHostname("", ln.Addr().String())
+	result := CheckHostname("", ln.Addr().String(), testTimeout)
 
 	expected := ResultGroup{
 		Status: 2,
@@ -180,7 +183,7 @@ func TestSuccessWithFakeCA(t *testing.T) {
 	// conserving the port number.
 	addrParts := strings.Split(ln.Addr().String(), ":")
 	port := addrParts[len(addrParts)-1]
-	result := CheckHostname("", "localhost:"+port)
+	result := CheckHostname("", "localhost:"+port, testTimeout)
 	expected := ResultGroup{
 		Status: 0,
 		Checks: map[string]CheckResult{
@@ -191,6 +194,49 @@ func TestSuccessWithFakeCA(t *testing.T) {
 		},
 	}
 	compareStatuses(t, expected, result)
+}
+
+// Tests that the checker successfully initiates an SMTP connection with mail
+// servers that use a greet delay.
+func TestSuccessWithDelayedGreeting(t *testing.T) {
+	ln, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go ServeDelayedGreeting(ln, t)
+
+	client, err := smtpDialWithTimeout(ln.Addr().String(), testTimeout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.Close()
+}
+
+func ServeDelayedGreeting(ln net.Listener, t *testing.T) {
+	conn, err := ln.Accept()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+
+	time.Sleep(testTimeout + 100*time.Millisecond)
+	_, err = conn.Write([]byte("220 localhost ESMTP\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	line, err := bufio.NewReader(conn).ReadString('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(line, "EHLO localhost") {
+		t.Fatalf("unexpected response from checker: %s", line)
+	}
+
+	_, err = conn.Write([]byte("250 HELO\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestFailureWithBadHostname(t *testing.T) {
@@ -212,7 +258,7 @@ func TestFailureWithBadHostname(t *testing.T) {
 	// conserving the port number.
 	addrParts := strings.Split(ln.Addr().String(), ":")
 	port := addrParts[len(addrParts)-1]
-	result := CheckHostname("", "localhost:"+port)
+	result := CheckHostname("", "localhost:"+port, testTimeout)
 	expected := ResultGroup{
 		Status: 2,
 		Checks: map[string]CheckResult{
@@ -252,7 +298,7 @@ func TestAdvertisedCiphers(t *testing.T) {
 
 	ln := smtpListenAndServe(t, tlsConfig)
 	defer ln.Close()
-	CheckHostname("", ln.Addr().String())
+	CheckHostname("", ln.Addr().String(), testTimeout)
 
 	// Partial list of ciphers we want to support
 	expectedCipherSuites := []struct {

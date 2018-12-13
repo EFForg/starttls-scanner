@@ -66,7 +66,7 @@ func main() {
 			singleResult.Testing)
 		os.Exit(0)
 	} else if *domainStr != "" {
-		result = checker.CheckDomain(*domainStr, nil)
+		result = checker.CheckDomain(*domainStr, nil, 5*time.Second)
 	} else if *domainsFileStr != "" {
 		var list []interface{}
 		domains, _ := domainsFromFile(*domainsFileStr)
@@ -81,7 +81,7 @@ func main() {
 					singleResult.Testing)
 				single = singleResult
 			} else {
-				single = checker.CheckDomain(domain, nil)
+				single = checker.CheckDomain(domain, nil, 5*time.Second)
 			}
 			list = append(list, single)
 			time.Sleep(100 * time.Millisecond)

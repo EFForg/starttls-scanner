@@ -32,7 +32,6 @@ func registerHandlers(api *API, mux *http.ServeMux) http.Handler {
 		throttleHandler(time.Hour, 3, http.HandlerFunc(apiWrapper(api.Queue))))
 	mux.HandleFunc("/api/validate", apiWrapper(api.Validate))
 	mux.HandleFunc("/api/ping", pingHandler)
-	mux.HandleFunc("/auth/list", apiWrapper(api.GetList))
 
 	return middleware(mux)
 }
@@ -113,7 +112,13 @@ func main() {
 		DontScan:    loadDontScan(),
 		Emailer:     emailConfig,
 	}
+	if os.Getenv("VALIDATE_LIST") == "1" {
+		log.Println("[Starting list validator]")
+		go validator.ValidateRegularly(list, 24*time.Hour)
+	}
+	if os.Getenv("VALIDATE_QUEUED") == "1" {
+		log.Println("[Starting queued validator]")
+		go validator.ValidateRegularly(db, 24*time.Hour)
+	}
 	ServePublicEndpoints(&api, &cfg)
-	go validator.ValidateRegularly(list, 24*time.Hour)
-	go validator.ValidateRegularly(db, 24*time.Hour)
 }
