@@ -50,7 +50,8 @@ func main() {
 	}
 	domainStr := flag.String("domain", "", "Required: Domain to check TLS for.")
 	domainsFileStr := flag.String("domains", "", "Required: Domain to check TLS for.")
-	mtasts := flag.Bool("mtasts", false, "Whether to check for MTA-STS advertisement")
+	// @TODO mta-sts check
+	// mtasts := flag.Bool("mtasts", false, "Whether to check for MTA-STS advertisement")
 	flag.Parse()
 	if *domainStr == "" && *domainsFileStr == "" {
 		flag.PrintDefaults()
@@ -58,31 +59,14 @@ func main() {
 	}
 
 	var result interface{}
-	if *mtasts && *domainsFileStr == "" {
-		singleResult := checker.CheckMTASTS(*domainStr)
-		fmt.Printf("%s,%t,%t\n",
-			singleResult.Domain,
-			singleResult.Support,
-			singleResult.Testing)
-		os.Exit(0)
-	} else if *domainStr != "" {
+	if *domainStr != "" {
 		result = checker.CheckDomain(*domainStr, nil, 5*time.Second)
-	} else if *domainsFileStr != "" {
+	} else {
 		var list []interface{}
 		domains, _ := domainsFromFile(*domainsFileStr)
 		for _, domain := range domains {
 			var single interface{}
-			if *mtasts {
-				singleResult := checker.CheckMTASTS(domain)
-
-				fmt.Printf("%s,%t,%t\n",
-					singleResult.Domain,
-					singleResult.Support,
-					singleResult.Testing)
-				single = singleResult
-			} else {
-				single = checker.CheckDomain(domain, nil, 5*time.Second)
-			}
+			single = checker.CheckDomain(domain, nil, 5*time.Second)
 			list = append(list, single)
 			time.Sleep(100 * time.Millisecond)
 		}
