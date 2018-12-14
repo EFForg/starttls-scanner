@@ -55,8 +55,8 @@ func validateMTASTSRecord(records []string, result CheckResult) CheckResult {
 	}
 	record := getKeyValuePairs(records[0], ";", "=")
 
-	id_re := regexp.MustCompile("^[a-zA-Z0-9]+$")
-	if !id_re.MatchString(record["id"]) {
+	idPattern := regexp.MustCompile("^[a-zA-Z0-9]+$")
+	if !idPattern.MatchString(record["id"]) {
 		return result.Failure("invalid id %s", record["id"])
 	}
 	return result.Success()
@@ -116,19 +116,19 @@ func validateMTASTSPolicyFile(body string, result CheckResult) (CheckResult, map
 	return result.Success(), policy
 }
 
-func validateMTASTSMXs(policy_file_mxs []string, dns_mxs map[string]HostnameResult,
+func validateMTASTSMXs(policyFileMXs []string, dnsMXs map[string]HostnameResult,
 	result CheckResult) CheckResult {
-	for _, dns_mx := range dns_mxs {
-		if !dns_mx.couldConnect() {
+	for _, dnsMX := range dnsMXs {
+		if !dnsMX.couldConnect() {
 			// Ignore hostnames we couldn't connect to, they may be spam traps.
 			continue
 		}
-		if !containsString(policy_file_mxs, dns_mx.Hostname) {
+		if !containsString(policyFileMXs, dnsMX.Hostname) {
 			result.Warning("%s appears in the DNS record but not the MTA-STS policy file",
-				dns_mx.Hostname)
-		} else if !dns_mx.couldSTARTTLS() {
+				dnsMX.Hostname)
+		} else if !dnsMX.couldSTARTTLS() {
 			result.Warning("%s appears in the DNS record and MTA-STS policy file, but doesn't support STARTTLS",
-				dns_mx.Hostname)
+				dnsMX.Hostname)
 		}
 	}
 	return result
