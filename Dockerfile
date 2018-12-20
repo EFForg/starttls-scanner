@@ -2,7 +2,7 @@ FROM golang:1.10
 
 WORKDIR /go/src/github.com/EFForg/starttls-backend
 
-RUN apt-get update && apt-get -y install postgresql
+RUN apt-get update && apt-get -y install postgresql-client
 
 ADD . .
 
