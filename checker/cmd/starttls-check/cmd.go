@@ -57,21 +57,8 @@ func main() {
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
-
-	var result interface{}
-	if *domainStr != "" {
-		result = checker.CheckDomain(*domainStr, nil, 5*time.Second)
-	} else {
-		var list []interface{}
-		domains, _ := domainsFromFile(*domainsFileStr)
-		for _, domain := range domains {
-			var single interface{}
-			single = checker.CheckDomain(domain, nil, 5*time.Second)
-			list = append(list, single)
-			time.Sleep(100 * time.Millisecond)
-		}
-		result = list
-	}
+	cache := checker.CreateSimpleCache(10 * time.Minute)
+	result := checker.CheckDomain(*domainStr, nil, 5*time.Second, cache)
 	b, err := json.Marshal(result)
 	if err != nil {
 		fmt.Printf("%q", err)
