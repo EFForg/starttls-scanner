@@ -9,5 +9,6 @@ ADD . .
 RUN go get github.com/EFForg/starttls-backend
 
 ENTRYPOINT ["/go/src/github.com/EFForg/starttls-backend/entrypoint.sh"]
+CMD ["/go/bin/starttls-backend"]
 
 EXPOSE 8080

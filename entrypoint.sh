@@ -5,4 +5,4 @@ if [ "$DB_MIGRATE" = "true" ]; then
     PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -U $DB_USERNAME $DB_NAME -f ./db/scripts/init_tables.sql
 fi
 
-exec /go/bin/starttls-backend "$@"
+exec "$@"
