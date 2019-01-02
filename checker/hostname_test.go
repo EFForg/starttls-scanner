@@ -48,7 +48,7 @@ func createCert(keyData string, commonName string) string {
 
 func TestPolicyMatch(t *testing.T) {
 	var tests = []struct {
-		certName string
+		hostname string
 		policyMX string
 		want     bool
 	}{
@@ -62,28 +62,34 @@ func TestPolicyMatch(t *testing.T) {
 
 		// base domain shouldn't match wildcard
 		{"example.com", ".example.com", false},
-		{"*.example.com", "example.com", false},
+		{"example.com", "*.example.com", false},
 
 		// Invalid wildcard shouldn't match.
-		{"*mx.example.com", "mx.example.com", false},
+		{"mx.example.com", "*mx.example.com", false},
 
-		// Single-level subdomain match for policy suffix.
-		{"mx.example.com", ".example.com", true},
-		{"*.example.com", ".example.com", true},
+		// Single-level subdomain match
+		{"mx.example.com", "*.example.com", true},
+		{"mx.mx.example.com", "*.mx.example.com", true},
 
-		// No multi-level subdomain matching for policy suffix.
-		{"mx.mx.example.com", ".example.com", false},
-		{"*.mx.example.com", ".example.com", false},
+		// Wildcard may match left-most label only
+		{"mx.example.com", "mx.*.com", false},
 
-		// Role reversal also works.
-		{"*.example.com", "mx.example.com", true},
+		// No multi-level subdomain matching.
+		{"mx.mx.example.com", "*.example.com", false},
+
+		// No partial subdomain matches
+		{"mx.example.com", "mx.*ple.com", false},
+
+		// Hostname should not use wildcards.
+		{"*.example.com", "mx.example.com", false},
 		{"*.example.com", "mx.mx.example.com", false},
 		{"*.example.com", ".mx.example.com", false},
 	}
 
 	for _, test := range tests {
-		if got := policyMatch(test.certName, test.policyMX); got != test.want {
-			t.Errorf("policyMatch(%q, %q) = %v", test.certName, test.policyMX, got)
+		policy := []string{test.policyMX}
+		if got := policyMatches(test.hostname, policy); got != test.want {
+			t.Errorf("policyMatch(%q, %q) = %v", test.hostname, policy, got)
 		}
 	}
 }

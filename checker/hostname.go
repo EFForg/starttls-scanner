@@ -18,7 +18,7 @@ type HostnameResult struct {
 	Timestamp time.Time `json:"-"`
 }
 
-// Returns result of specifiedcheck.
+// Returns result of specified check.
 // If called before that check occurs, returns false.
 func (h HostnameResult) checkSucceeded(checkName string) bool {
 	if result, ok := h.Checks[checkName]; ok {
@@ -35,35 +35,28 @@ func (h HostnameResult) couldSTARTTLS() bool {
 	return h.checkSucceeded("starttls")
 }
 
-// Modelled after isWildcardMatch in Appendix B of the MTA-STS draft.
-// From draft v17:
-// Senders who are comparing a "suffix" MX pattern with a wildcard
-// identifier should thus strip the wildcard and ensure that the two
-// sides match label-by-label, until all labels of the shorter side
-// (if unequal length) are consumed.
-func wildcardMatch(hostname string, pattern string) bool {
-	if strings.HasPrefix(pattern, ".") {
-		parts := strings.SplitAfterN(hostname, ".", 2)
-		if len(parts) > 1 && parts[1] == pattern[1:] {
+// Modelled after policyMatches in Appendix B of the MTA-STS RFC 8641.
+// Also used to validate hostnames on the STARTTLS Everywhere policy list.
+func policyMatches(mx string, patterns []string) bool {
+	mx = strings.TrimSuffix(mx, ".") // If FQDN, might end with .
+	mx = withoutPort(mx)             // If URL, might include port
+	mx = strings.ToLower(mx)         // Lowercase for comparison
+	for _, pattern := range patterns {
+		pattern = strings.ToLower(pattern)
+
+		// Literal match
+		if pattern == mx {
 			return true
+		}
+		// Wildcard match
+		if strings.HasPrefix(pattern, "*.") {
+			mxParts := strings.SplitN(mx, ".", 2)
+			if len(mxParts) > 1 && mxParts[1] == pattern[2:] {
+				return true
+			}
 		}
 	}
 	return false
-}
-
-// Modelled after certMatches in Appendix B of the MTA-STS draft.
-func policyMatch(certName string, policyMx string) bool {
-	// Lowercase both names for comparison
-	certName = strings.ToLower(certName)
-	policyMx = strings.ToLower(policyMx)
-	if strings.HasPrefix(certName, "*") {
-		certName = certName[1:]
-		if !strings.HasPrefix(certName, ".") { // Invalid wildcard domain
-			return false
-		}
-	}
-	return certName == policyMx || wildcardMatch(certName, policyMx) ||
-		wildcardMatch(policyMx, certName)
 }
 
 func withoutPort(url string) string {
@@ -71,22 +64,6 @@ func withoutPort(url string) string {
 		return url[0:strings.LastIndex(url, ":")]
 	}
 	return url
-}
-
-// Checks certificate names against a list of expected MX patterns.
-// The expected MX patterns are in the format described by MTA-STS,
-// and validation is done according to this RFC as well.
-func hasValidName(names []string, hostname string) bool {
-	// If FQDN, might end with '.'; strip it!
-	hostname = strings.TrimSuffix(hostname, ".")
-	// If URL, might include port #; strip it!
-	hostname = withoutPort(hostname)
-	for _, name := range names {
-		if policyMatch(name, hostname) {
-			return true
-		}
-	}
-	return false
 }
 
 // Retrieves this machine's hostname, if specified.
@@ -178,7 +155,10 @@ func checkCert(client *smtp.Client, domain, hostname string) CheckResult {
 		return result.Error("TLS not initiated properly.")
 	}
 	cert := state.PeerCertificates[0]
-	if !hasValidName(getNamesFromCert(cert), hostname) {
+	// Reusing the policy match fn for mta-sts policy, which has a weird name
+	// here.  @TODO use a different fn with partial wildcard support,
+	// VerifyHostname in X509 pkg if possible.
+	if !policyMatches(hostname, getNamesFromCert(cert)) {
 		result = result.Failure("Name in cert doesn't match hostname.")
 	}
 	err := verifyCertChain(state)
