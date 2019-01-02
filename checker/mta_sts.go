@@ -96,21 +96,21 @@ func validateMTASTSPolicyFile(body string, result CheckResult) (CheckResult, map
 	policy := getKeyValuePairs(body, "\n", ":")
 
 	if policy["version"] != "STSv1" {
-		result.Error("Policy version must be STSv1")
+		result.Failure("Policy version must be STSv1")
 	}
 
 	if policy["mode"] == "" {
-		result.Error("Policy file must specify mode")
+		result.Failure("Policy file must specify mode")
 	}
 	if m := policy["mode"]; m != "enforce" && m != "testing" && m != "none" {
-		result.Error("Mode must be one of 'enforce', 'testing', or 'none', got %s", m)
+		result.Failure("Mode must be one of 'enforce', 'testing', or 'none', got %s", m)
 	}
 
 	if policy["max_age"] == "" {
-		result.Error("Policy file must specify max_age")
+		result.Failure("Policy file must specify max_age")
 	}
 	if i, err := strconv.Atoi(policy["max_age"]); err != nil || i <= 0 || i > 31557600 {
-		result.Error("max_age must be a positive integer <= 31557600")
+		result.Failure("max_age must be a positive integer <= 31557600")
 	}
 
 	return result.Success(), policy
@@ -118,17 +118,17 @@ func validateMTASTSPolicyFile(body string, result CheckResult) (CheckResult, map
 
 func validateMTASTSMXs(policyFileMXs []string, dnsMXs map[string]HostnameResult,
 	result CheckResult) CheckResult {
-	for _, dnsMX := range dnsMXs {
-		if !dnsMX.couldConnect() {
+	for dnsMX, dnsMXResult := range dnsMXs {
+		if !dnsMXResult.couldConnect() {
 			// Ignore hostnames we couldn't connect to, they may be spam traps.
 			continue
 		}
-		if !containsString(policyFileMXs, dnsMX.Hostname) {
+		if !containsString(policyFileMXs, dnsMX) {
 			result.Warning("%s appears in the DNS record but not the MTA-STS policy file",
-				dnsMX.Hostname)
-		} else if !dnsMX.couldSTARTTLS() {
+				dnsMX)
+		} else if !dnsMXResult.couldSTARTTLS() {
 			result.Warning("%s appears in the DNS record and MTA-STS policy file, but doesn't support STARTTLS",
-				dnsMX.Hostname)
+				dnsMX)
 		}
 	}
 	return result

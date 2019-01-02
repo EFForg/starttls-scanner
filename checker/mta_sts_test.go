@@ -60,11 +60,67 @@ func TestValidateMTASTSPolicyFile(t *testing.T) {
 		status CheckStatus
 	}{
 		{"version: STSv1\nmode: enforce\nmax_age:100000\nmx: foo.example.com\nmx: bar.example.com\n", Success},
+		{"\nmx: foo.example.com\nmx: bar.example.com\n", Failure},
+		{"version: STSv1\nmode: enforce\nmax_age:0\nmx: foo.example.com\nmx: bar.example.com\n", Failure},
+		{"version: STSv1\nmode: start_turtles\nmax_age:100000\nmx: foo.example.com\nmx: bar.example.com\n", Failure},
 	}
 	for _, test := range tests {
 		result, _ := validateMTASTSPolicyFile(test.txt, CheckResult{})
 		if result.Status != test.status {
 			t.Errorf("validateMTASTSPolicyFile(%v) = %v", test.txt, result)
+		}
+	}
+}
+
+func TestValidateMTASTSMXs(t *testing.T) {
+	goodHostnameResult := HostnameResult{
+		ResultGroup: &ResultGroup{
+			Status: 3,
+			Checks: map[string]CheckResult{
+				"connectivity": {"connectivity", 0, nil},
+				"starttls":     {"starttls", 0, nil},
+			},
+		},
+	}
+	noSTARTTLSHostnameResult := HostnameResult{
+		ResultGroup: &ResultGroup{
+			Status: 3,
+			Checks: map[string]CheckResult{
+				"connectivity": {"connectivity", 0, nil},
+				"starttls":     {"starttls", 3, nil},
+			},
+		},
+	}
+	tests := []struct {
+		policyFileMXs []string
+		dnsMXs        map[string]HostnameResult
+		status        CheckStatus
+	}{
+		{
+			[]string{"mail.example.com"},
+			map[string]HostnameResult{"mail.example.com": goodHostnameResult},
+			Success,
+		},
+		{
+			[]string{"mail.example.com", "extra-entries.are-okay.com"},
+			map[string]HostnameResult{"mail.example.com": goodHostnameResult},
+			Success,
+		},
+		{
+			[]string{},
+			map[string]HostnameResult{"mail.example.com": goodHostnameResult},
+			Warning,
+		},
+		{
+			[]string{"nostarttls.example.com"},
+			map[string]HostnameResult{"nostarttls.example.com": noSTARTTLSHostnameResult},
+			Warning,
+		},
+	}
+	for _, test := range tests {
+		result := validateMTASTSMXs(test.policyFileMXs, test.dnsMXs, CheckResult{})
+		if result.Status != test.status {
+			t.Errorf("validateMTASTSMXs(%v, %v, %v) = %v", test.policyFileMXs, test.dnsMXs, CheckResult{}, result)
 		}
 	}
 }
