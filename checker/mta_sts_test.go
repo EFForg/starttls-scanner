@@ -107,6 +107,11 @@ func TestValidateMTASTSMXs(t *testing.T) {
 			Success,
 		},
 		{
+			[]string{"*.example.com"},
+			map[string]HostnameResult{"mail.example.com": goodHostnameResult},
+			Success,
+		},
+		{
 			[]string{},
 			map[string]HostnameResult{"mail.example.com": goodHostnameResult},
 			Warning,
