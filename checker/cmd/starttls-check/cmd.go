@@ -50,8 +50,6 @@ func main() {
 	}
 	domainStr := flag.String("domain", "", "Required: Domain to check TLS for.")
 	domainsFileStr := flag.String("domains", "", "Required: Domain to check TLS for.")
-	// @TODO mta-sts check
-	// mtasts := flag.Bool("mtasts", false, "Whether to check for MTA-STS advertisement")
 	flag.Parse()
 	if *domainStr == "" && *domainsFileStr == "" {
 		flag.PrintDefaults()
