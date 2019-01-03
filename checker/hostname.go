@@ -106,15 +106,6 @@ func checkStartTLS(client *smtp.Client) CheckResult {
 	return result.Success()
 }
 
-// Retrieves valid names from certificate. If the certificate has
-// SAN, retrieves all SAN domains; otherwise returns a list containing only the CN.
-func getNamesFromCert(cert *x509.Certificate) []string {
-	if cert.DNSNames != nil && len(cert.DNSNames) > 0 {
-		return cert.DNSNames
-	}
-	return []string{cert.Subject.CommonName}
-}
-
 // If no MX matching policy was provided, then we'll default to accepting matches
 // based on the mail domain and the MX hostname.
 //
