@@ -78,10 +78,14 @@ func checkMTASTSPolicyFile(domain string, hostnameResults map[string]HostnameRes
 	if resp.StatusCode != 200 {
 		return result.Failure("Couldn't get policy file: %s", resp.Status)
 	}
-	// RFC says to check media type.
-	// if resp.Header["Content-Type"] != "text/plain" {
-	// 	return result.Error("Media type must be text/plain")
-	// }
+	// Media type should be text/plain, ignoring other Content-Type parms.
+	// Format: Content-Type := type "/" subtype *[";" parameter]
+	for _, contentType := range resp.Header["Content-Type"] {
+		contentType := strings.ToLower(contentType)
+		if strings.HasPrefix(contentType, "text/plain") {
+			return result.Warning("Media type must be text/plain")
+		}
+	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
