@@ -155,13 +155,13 @@ func checkCert(client *smtp.Client, domain, hostname string) CheckResult {
 		return result.Error("TLS not initiated properly.")
 	}
 	cert := state.PeerCertificates[0]
-	// Reusing the policy match fn for mta-sts policy, which has a weird name
-	// here.  @TODO use a different fn with partial wildcard support,
-	// VerifyHostname in X509 pkg if possible.
-	if !policyMatches(hostname, getNamesFromCert(cert)) {
-		result = result.Failure("Name in cert doesn't match hostname.")
+	// If hostname is an FQDN, it might end with '.'
+	hostname = strings.TrimSuffix(hostname, ".")
+	err := cert.VerifyHostname(withoutPort(hostname))
+	if err != nil {
+		result.Failure("Name in cert doesn't match hostname: %v", err)
 	}
-	err := verifyCertChain(state)
+	err = verifyCertChain(state)
 	if err != nil {
 		return result.Failure("Certificate root is not trusted: %v", err)
 	}
