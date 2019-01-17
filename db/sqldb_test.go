@@ -307,7 +307,7 @@ func TestGetHostnameScan(t *testing.T) {
 	now := time.Now()
 	database.PutHostnameScan("hello",
 		checker.HostnameResult{
-			Timestamp:   time.Now(),
+			Timestamp:   now,
 			Hostname:    "hello",
 			ResultGroup: &checker.ResultGroup{Status: 1, Checks: checksMap},
 		},
@@ -316,7 +316,7 @@ func TestGetHostnameScan(t *testing.T) {
 	if err != nil {
 		t.Errorf("Expected hostname scan to return without errors")
 	}
-	if now.Sub(result.Timestamp) > time.Second {
+	if now == result.Timestamp {
 		t.Errorf("unexpected gap between written timestamp %s and read timestamp %s", now, result.Timestamp)
 	}
 	if result.Status != 1 || checksMap["test"].Name != result.Checks["test"].Name {
