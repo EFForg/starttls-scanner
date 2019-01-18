@@ -79,8 +79,8 @@ func TestValidateMTASTSMXs(t *testing.T) {
 		Result: &Result{
 			Status: 3,
 			Checks: map[string]*Result{
-				"connectivity": {"connectivity", 0, nil, nil},
-				"starttls":     {"starttls", 0, nil, nil},
+				"connectivity": {Connectivity, 0, nil, nil},
+				"starttls":     {STARTTLS, 0, nil, nil},
 			},
 		},
 	}
@@ -88,8 +88,8 @@ func TestValidateMTASTSMXs(t *testing.T) {
 		Result: &Result{
 			Status: 3,
 			Checks: map[string]*Result{
-				"connectivity": {"connectivity", 0, nil, nil},
-				"starttls":     {"starttls", 3, nil, nil},
+				"connectivity": {Connectivity, 0, nil, nil},
+				"starttls":     {STARTTLS, 3, nil, nil},
 			},
 		},
 	}
