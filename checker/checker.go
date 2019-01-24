@@ -24,14 +24,14 @@ type Checker struct {
 	checkHostname func(string, string) HostnameResult
 }
 
-func (c Checker) timeout() time.Duration {
+func (c *Checker) timeout() time.Duration {
 	if c.Timeout != 0 {
 		return c.Timeout
 	}
 	return 10 * time.Second
 }
 
-func (c Checker) cache() *ScanCache {
+func (c *Checker) cache() *ScanCache {
 	if c.Cache == nil {
 		c.Cache = MakeSimpleCache(10 * time.Minute)
 	}
