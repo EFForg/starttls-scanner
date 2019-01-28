@@ -8,7 +8,7 @@ import (
 // Status is an enum encoding the status of the overall check.
 type Status int32
 
-// Values for CheckStatus
+// Values for Result Status
 const (
 	Success Status = 0
 	Warning Status = 1
@@ -23,6 +23,7 @@ var statusText = map[Status]string{
 	Error:   "Error",
 }
 
+// StatusText returns the text version of the Result Status
 func (r Result) StatusText() string {
 	return statusText[r.Status]
 }
@@ -106,6 +107,7 @@ func (r *Result) addCheck(checkResult *Result) {
 	r.Status = SetStatus(r.Status, checkResult.Status)
 }
 
+// IDs for checks that can be run
 const (
 	Connectivity     = "connectivity"
 	STARTTLS         = "starttls"
@@ -117,6 +119,7 @@ const (
 	PolicyList       = "policylist"
 )
 
+// Text descriptions of checks that can be run
 var checkNames = map[string]string{
 	Connectivity:     "Server connectivity",
 	STARTTLS:         "Support for STARTTLS",
@@ -128,10 +131,13 @@ var checkNames = map[string]string{
 	PolicyList:       "Status on EFF's STARTTLS Everywhere policy list",
 }
 
+// Description returns the full-text name of a check.
 func (r Result) Description() string {
 	return checkNames[r.Name]
 }
 
+// MarshalJSON writes Result to JSON. It adds status_text and description to
+// the output.
 func (r Result) MarshalJSON() ([]byte, error) {
 	// FakeResult lets us access the default json.Marshall result for Result.
 	type FakeResult Result
