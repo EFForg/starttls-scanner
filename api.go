@@ -75,15 +75,11 @@ type apiHandler func(r *http.Request) APIResponse
 func apiWrapper(api apiHandler) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		response := api(r)
-		if response.StatusCode != http.StatusOK {
-			http.Error(w, response.Message, response.StatusCode)
-		}
 		if response.StatusCode == http.StatusInternalServerError {
 			packet := raven.NewPacket(response.Message, raven.NewHttp(r))
 			raven.Capture(packet, nil)
 		}
-		if strings.Contains(r.Header.Get("accept"), "text/html") &&
-			response.TemplatePath != "" {
+		if strings.Contains(r.Header.Get("accept"), "text/html") {
 			writeHTML(w, response)
 		} else {
 			writeJSON(w, response)
@@ -284,11 +280,7 @@ func (api API) Queue(r *http.Request) APIResponse {
 		// 2. Create token for domain
 		token, err := api.Database.PutToken(domain)
 		if err != nil {
-			return APIResponse{
-				StatusCode:   http.StatusInternalServerError,
-				Message:      err.Error(),
-				TemplatePath: "views/domain.html.tmpl",
-			}
+			return APIResponse{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 		}
 
 		// 3. Send email
@@ -298,21 +290,22 @@ func (api API) Queue(r *http.Request) APIResponse {
 			return APIResponse{StatusCode: http.StatusInternalServerError,
 				Message: "Unable to send validation e-mail"}
 		}
+		// domainData.State = Unvalidated
+		// or queued?
 		return APIResponse{
-			StatusCode:   http.StatusOK,
-			Response:     domainData,
-			TemplatePath: "views/domain.html.tmpl",
+			StatusCode: http.StatusOK,
+			Response:   fmt.Sprintf("Thank you for submitting your domain. Please check postmaster@%s to validate that you control the domain.", domain),
 		}
 		// GET: Retrieve domain status from queue
+		// JSON only
 	} else if r.Method == http.MethodGet {
 		status, err := api.Database.GetDomain(domain)
 		if err != nil {
 			return APIResponse{StatusCode: http.StatusNotFound, Message: err.Error()}
 		}
 		return APIResponse{
-			StatusCode:   http.StatusOK,
-			Response:     status,
-			TemplatePath: "views/domain.html.tmpl",
+			StatusCode: http.StatusOK,
+			Response:   status,
 		}
 	} else {
 		return APIResponse{StatusCode: http.StatusMethodNotAllowed,
@@ -380,9 +373,10 @@ func getParam(param string, r *http.Request) (string, error) {
 
 // Writes `v` as a JSON object to http.ResponseWriter `w`. If an error
 // occurs, writes `http.StatusInternalServerError` to `w`.
-func writeJSON(w http.ResponseWriter, v interface{}) {
+func writeJSON(w http.ResponseWriter, apiResponse APIResponse) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	b, err := json.MarshalIndent(v, "", "  ")
+	w.WriteHeader(apiResponse.StatusCode)
+	b, err := json.MarshalIndent(apiResponse, "", "  ")
 	if err != nil {
 		msg := fmt.Sprintf("Internal error: could not format JSON. (%s)\n", err)
 		http.Error(w, msg, http.StatusInternalServerError)
@@ -393,6 +387,9 @@ func writeJSON(w http.ResponseWriter, v interface{}) {
 
 func writeHTML(w http.ResponseWriter, apiResponse APIResponse) {
 	// Add some additional useful fields for use in templates.
+	if apiResponse.TemplatePath == "" {
+		apiResponse.TemplatePath = "views/default.html.tmpl"
+	}
 	data := struct {
 		APIResponse
 		BaseURL string
@@ -407,9 +404,8 @@ func writeHTML(w http.ResponseWriter, apiResponse APIResponse) {
 		http.Error(w, "Internal error: could not parse template.", http.StatusInternalServerError)
 		return
 	}
+	w.WriteHeader(apiResponse.StatusCode)
 	err = tmpl.Execute(w, data)
-	// We can't write a 500 status header if tmpl.Execute fails because Execute
-	// may have already written to the status and body of w.
 	if err != nil {
 		log.Println(err)
 		raven.CaptureError(err, nil)

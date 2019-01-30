@@ -15,15 +15,16 @@
     <p>{{ .Response.Data.Message }}</p>
 
     <h2>STARTTLS Everywhere Policy List</h2>
-    {{ $r := index .Response.Data.ExtraResults "policylist" }}
-    {{ $r.Description }}: <strong>{{ $r.StatusText }}</strong>
-    <ul>
-      {{ range $_, $message := $r.Messages }}
-        <li>{{ $message }}</li>
+    {{ with $r := index .Response.Data.ExtraResults "policylist" }}
+      {{ $r.Description }}: <strong>{{ $r.StatusText }}</strong>
+      <ul>
+        {{ range $_, $message := $r.Messages }}
+          <li>{{ $message }}</li>
+        {{ end }}
+      </ul>
+      {{ if eq $r.Status 1 }}
+        <a href="{{ .BaseURL }}/add-domain">Add your email domain the STARTTLS Everywhere Policy List</a>
       {{ end }}
-    </ul>
-    {{ if eq $r.Status 1 }}
-      <a href="{{ .BaseURL }}/add-domain">Add your email domain the STARTTLS Everywhere Policy List</a>
     {{ end }}
 
     <h2>Mailboxes</h2>
