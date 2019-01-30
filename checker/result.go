@@ -122,10 +122,10 @@ const (
 // Text descriptions of checks that can be run
 var checkNames = map[string]string{
 	Connectivity:     "Server connectivity",
-	STARTTLS:         "Support for STARTTLS",
+	STARTTLS:         "Support for inbound STARTTLS",
 	Version:          "Secure version of TLS",
 	Certificate:      "Valid certificate",
-	MTASTS:           "Implementation of MTA-STS",
+	MTASTS:           "Inbound MTA-STS support",
 	MTASTSText:       "Correct MTA-STS DNS record",
 	MTASTSPolicyFile: "Correct MTA-STS policy file",
 	PolicyList:       "Status on EFF's STARTTLS Everywhere policy list",

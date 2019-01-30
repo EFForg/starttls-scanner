@@ -67,7 +67,7 @@ type APIResponse struct {
 	StatusCode   int         `json:"status_code"`
 	Message      string      `json:"message"`
 	Response     interface{} `json:"response"`
-	TemplatePath string      `json:"omit"`
+	TemplatePath string      `json:"-"`
 }
 
 type apiHandler func(r *http.Request) APIResponse
