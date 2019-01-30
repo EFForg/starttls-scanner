@@ -111,6 +111,7 @@ func main() {
 		DontScan:    loadDontScan(),
 		Emailer:     emailConfig,
 	}
+	api.parseTemplates()
 	if os.Getenv("VALIDATE_LIST") == "1" {
 		log.Println("[Starting list validator]")
 		go validator.ValidateRegularly(list, 24*time.Hour)
