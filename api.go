@@ -73,17 +73,17 @@ type APIResponse struct {
 
 type apiHandler func(r *http.Request) APIResponse
 
-func apiWrapper(api apiHandler) func(w http.ResponseWriter, r *http.Request) {
+func (api *API) wrapper(handler apiHandler) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		response := api(r)
+		response := handler(r)
 		if response.StatusCode == http.StatusInternalServerError {
 			packet := raven.NewPacket(response.Message, raven.NewHttp(r))
 			raven.Capture(packet, nil)
 		}
 		if strings.Contains(r.Header.Get("accept"), "text/html") {
-			writeHTML(w, response)
+			api.writeHTML(w, response)
 		} else {
-			writeJSON(w, response)
+			api.writeJSON(w, response)
 		}
 	}
 }
@@ -374,7 +374,7 @@ func getParam(param string, r *http.Request) (string, error) {
 
 // Writes `v` as a JSON object to http.ResponseWriter `w`. If an error
 // occurs, writes `http.StatusInternalServerError` to `w`.
-func writeJSON(w http.ResponseWriter, apiResponse APIResponse) {
+func (api *API) writeJSON(w http.ResponseWriter, apiResponse APIResponse) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(apiResponse.StatusCode)
 	b, err := json.MarshalIndent(apiResponse, "", "  ")
@@ -400,7 +400,7 @@ func (api *API) parseTemplates() {
 	}
 }
 
-func writeHTML(w http.ResponseWriter, apiResponse APIResponse) {
+func (api *API) writeHTML(w http.ResponseWriter, apiResponse APIResponse) {
 	// Add some additional useful fields for use in templates.
 	data := struct {
 		APIResponse

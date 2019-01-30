@@ -26,10 +26,10 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 func registerHandlers(api *API, mux *http.ServeMux) http.Handler {
 	mux.HandleFunc("/sns", handleSESNotification(api.Database))
 
-	mux.HandleFunc("/api/scan", apiWrapper(api.Scan))
+	mux.HandleFunc("/api/scan", api.wrapper(api.Scan))
 	mux.Handle("/api/queue",
-		throttleHandler(time.Hour, 20, http.HandlerFunc(apiWrapper(api.Queue))))
-	mux.HandleFunc("/api/validate", apiWrapper(api.Validate))
+		throttleHandler(time.Hour, 20, http.HandlerFunc(api.wrapper(api.Queue))))
+	mux.HandleFunc("/api/validate", api.wrapper(api.Validate))
 	mux.HandleFunc("/api/ping", pingHandler)
 
 	return middleware(mux)
