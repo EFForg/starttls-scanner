@@ -3,6 +3,14 @@
     <title>STARTTLS Everywhere</title>
   </head>
   <body>
-    {{ .Response }}
+    {{ if ne .StatusCode 200 }}
+      <p>{{ .StatusText }}</p>
+    {{ end }}
+
+    {{ if ne .Message "" }}
+      <p>{{ .Message }}<p>
+    {{ end }}
+
+    <p>{{ .Response }}<p>
   </body>
 </html>

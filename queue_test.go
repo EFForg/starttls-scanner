@@ -36,6 +36,18 @@ func TestQueueHTML(t *testing.T) {
 	}
 }
 
+func TestQueueErrorHTML(t *testing.T) {
+	defer teardown()
+
+	body, status := testHTMLPost("/api/queue", url.Values{}, t)
+	if status != http.StatusBadRequest {
+		t.Errorf("HTML POST status should be %d, got %d", http.StatusBadRequest, status)
+	}
+	if !strings.Contains(string(body), "Bad Request") {
+		t.Errorf("Response should contain failed status text, got %s", string(body))
+	}
+}
+
 func TestGetDomainHidesEmail(t *testing.T) {
 	defer teardown()
 

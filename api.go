@@ -392,10 +392,12 @@ func writeHTML(w http.ResponseWriter, apiResponse APIResponse) {
 	}
 	data := struct {
 		APIResponse
-		BaseURL string
+		BaseURL    string
+		StatusText string
 	}{
 		APIResponse: apiResponse,
 		BaseURL:     os.Getenv("FRONTEND_WEBSITE_LINK"),
+		StatusText:  http.StatusText(apiResponse.StatusCode),
 	}
 	tmpl, err := template.ParseFiles(apiResponse.TemplatePath)
 	if err != nil {
