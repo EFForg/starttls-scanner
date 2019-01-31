@@ -157,6 +157,29 @@ func TestBasicQueueWorkflow(t *testing.T) {
 	}
 }
 
+func TestRequeueAttempt(t *testing.T) {
+	// A queued domain should not revert to unvalidated if resubmitted.
+
+	// Add the domain as "unvalidated".
+	http.PostForm(server.URL+"/api/queue", validQueueData(true))
+	// Upgrade to "queued".
+	api.Database.PutDomain(models.Domain{
+		Name:  "example.com",
+		Email: "testing@fake-email.org",
+		MXs:   []string{"example.com", "mx.example.com"},
+		State: models.StateQueued,
+	})
+	// Attempt to resubmit the domain.
+	http.PostForm(server.URL+"/api/queue", validQueueData(true))
+	domain, err := api.Database.GetDomain("example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if domain.State != "queued" {
+		t.Fatalf("Resubmitting a domain should preserve its status")
+	}
+}
+
 func TestQueueWithoutHostnames(t *testing.T) {
 	defer teardown()
 

@@ -261,18 +261,25 @@ func (api API) Queue(r *http.Request) APIResponse {
 				Message:    fmt.Sprintf("%s hasn't passed our STARTTLS security checks", domain),
 			}
 		}
-		// 0. Check to see it's not already queued
+		// 0. Check to see it's not already on the list or queued for addition.
 		_, err = api.List.Get(domain)
 		if err == nil {
 			return APIResponse{
 				StatusCode: http.StatusBadRequest,
 				Message:    fmt.Sprintf("%s is already on the list!", domain)}
 		}
+		dbDomain, err := api.Database.GetDomain(domain)
+		if err == nil && dbDomain.State == models.StateQueued {
+			return APIResponse{
+				StatusCode: http.StatusBadRequest,
+				Message:    fmt.Sprintf("%s will be reviewed for addition to the STARTTLS Everywhere Policy List.", domain),
+			}
+		}
+		// 1. Insert domain into DB
 		domainData, err := getDomainParams(r, domain)
 		if err != nil {
 			return APIResponse{StatusCode: http.StatusBadRequest, Message: err.Error()}
 		}
-		// 1. Insert domain into DB
 		err = api.Database.PutDomain(domainData)
 		if err != nil {
 			return APIResponse{StatusCode: http.StatusInternalServerError, Message: err.Error()}
@@ -290,8 +297,6 @@ func (api API) Queue(r *http.Request) APIResponse {
 			return APIResponse{StatusCode: http.StatusInternalServerError,
 				Message: "Unable to send validation e-mail"}
 		}
-		// domainData.State = Unvalidated
-		// or queued?
 		return APIResponse{
 			StatusCode: http.StatusOK,
 			Response:   fmt.Sprintf("Thank you for submitting your domain. Please check postmaster@%s to validate that you control the domain.", domain),
