@@ -57,7 +57,7 @@ func testHTMLPost(path string, data url.Values, t *testing.T) ([]byte, int) {
 		t.Fatal(err)
 	}
 	body, _ := ioutil.ReadAll(resp.Body)
-	if !strings.Contains(strings.ToLower(string(body)), "<html") {
+	if !strings.Contains(strings.ToLower(string(body)), "</html") {
 		t.Errorf("Response should be HTML, got %s", string(body))
 	}
 	return body, resp.StatusCode
