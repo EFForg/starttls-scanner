@@ -253,12 +253,6 @@ func (api API) Queue(r *http.Request) APIResponse {
 		if ok, msg := domain.IsQueueable(api.Database, api.List); !ok {
 			return badRequest(msg)
 		}
-		// 0. Check that hostnames match.
-		// if mta_sts && scan.Data.MTASTS.Status != Success {
-		// 	return badRequest("%d does not correctly implement MTA-STS.", domain)
-		// } else if !scan.matchesHostnames(hostnames) {
-		// 	return badRequest("%d is not valid for the supplied hostnames.", domain)
-		// }
 		// 1. Insert domain into DB
 		if err = api.Database.PutDomain(domain); err != nil {
 			return serverError(err.Error())
