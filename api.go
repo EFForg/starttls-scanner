@@ -240,54 +240,48 @@ func (api API) Queue(r *http.Request) APIResponse {
 	// Retrieve domain param
 	domain, err := getASCIIDomain(r)
 	if err != nil {
-		return APIResponse{StatusCode: http.StatusBadRequest, Message: err.Error()}
+		return badRequest(err.Error())
 	}
 	// POST: Insert this domain into the queue
 	if r.Method == http.MethodPost {
 		// 0. Check if scan occurred.
 		scan, err := api.Database.GetLatestScan(domain)
 		if err != nil {
-			return APIResponse{
-				StatusCode: http.StatusBadRequest,
-				Message: "We haven't scanned this domain yet. " +
-					"Please use the STARTTLS checker to scan your domain's " +
-					"STARTTLS configuration so we can validate your submission",
-			}
+			return badRequest("We haven't scanned this domain yet. " +
+				"Please use the STARTTLS checker to scan your domain's " +
+				"STARTTLS configuration so we can validate your submission")
 		}
 		if scan.Data.Status != 0 {
-			return APIResponse{
-				StatusCode: http.StatusBadRequest,
-				Message:    fmt.Sprintf("%s hasn't passed our STARTTLS security checks", domain),
-			}
+			return badRequest("%s hasn't passed our STARTTLS security checks", domain)
 		}
 		// 0. Check to see it's not already queued
-		_, err = api.List.Get(domain)
-		if err == nil {
-			return APIResponse{
-				StatusCode: http.StatusBadRequest,
-				Message:    fmt.Sprintf("%s is already on the list!", domain)}
+		if _, err := api.List.Get(domain); err == nil {
+			return serverError("%s is already on the list!", domain)
 		}
 		domainData, err := getDomainParams(r, domain)
 		if err != nil {
-			return APIResponse{StatusCode: http.StatusBadRequest, Message: err.Error()}
+			return badRequest(err.Error())
 		}
+		// 0. Check that hostnames match.
+		// if mta_sts && scan.Data.MTASTS.Status != Success {
+		// 	return badRequest("%d does not correctly implement MTA-STS.", domain)
+		// } else if !scan.matchesHostnames(hostnames) {
+		// 	return badRequest("%d is not valid for the supplied hostnames.", domain)
+		// }
 		// 1. Insert domain into DB
-		err = api.Database.PutDomain(domainData)
-		if err != nil {
-			return APIResponse{StatusCode: http.StatusInternalServerError, Message: err.Error()}
+		if err = api.Database.PutDomain(domainData); err != nil {
+			return serverError(err.Error())
 		}
 		// 2. Create token for domain
 		token, err := api.Database.PutToken(domain)
 		if err != nil {
-			return APIResponse{StatusCode: http.StatusInternalServerError, Message: err.Error()}
+			return serverError(err.Error())
 		}
 
 		// 3. Send email
-		err = api.Emailer.SendValidation(&domainData, token.Token)
-		if err != nil {
+		if err = api.Emailer.SendValidation(&domainData, token.Token); err != nil {
 			log.Print(err)
-			return APIResponse{StatusCode: http.StatusInternalServerError,
-				Message: "Unable to send validation e-mail"}
+			return serverError("Unable to send validation e-mail")
 		}
 		// domainData.State = Unvalidated
 		// or queued?
@@ -410,5 +404,19 @@ func writeHTML(w http.ResponseWriter, apiResponse APIResponse) {
 	if err != nil {
 		log.Println(err)
 		raven.CaptureError(err, nil)
+	}
+}
+
+func badRequest(format string, a ...interface{}) APIResponse {
+	return APIResponse{
+		StatusCode: http.StatusBadRequest,
+		Message:    fmt.Sprintf(format, a...),
+	}
+}
+
+func serverError(format string, a ...interface{}) APIResponse {
+	return APIResponse{
+		StatusCode: http.StatusInternalServerError,
+		Message:    fmt.Sprintf(format, a...),
 	}
 }
