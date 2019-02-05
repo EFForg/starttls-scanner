@@ -201,13 +201,17 @@ const MaxHostnames = 8
 
 // Extracts relevant parameters from http.Request for a POST to /api/queue
 // TODO: also validate hostnames as FQDNs.
-func getDomainParams(r *http.Request, domain string) (models.Domain, error) {
-	domainData := models.Domain{Name: domain, State: models.StateUnvalidated}
+func getDomainParams(r *http.Request) (models.Domain, error) {
+	name, err := getASCIIDomain(r)
+	if err != nil {
+		return models.Domain{}, err
+	}
+	domain := models.Domain{Name: name, State: models.StateUnvalidated}
 	email, err := getParam("email", r)
 	if err == nil {
-		domainData.Email = email
+		domain.Email = email
 	} else {
-		domainData.Email = validationAddress(&domainData)
+		domain.Email = validationAddress(&domain)
 	}
 
 	for _, hostname := range r.PostForm["hostnames"] {
@@ -215,84 +219,82 @@ func getDomainParams(r *http.Request, domain string) (models.Domain, error) {
 			continue
 		}
 		if !validDomainName(strings.TrimPrefix(hostname, ".")) {
-			return domainData, fmt.Errorf("hostname %s is invalid", hostname)
+			return domain, fmt.Errorf("hostname %s is invalid", hostname)
 		}
-		domainData.MXs = append(domainData.MXs, hostname)
+		domain.MXs = append(domain.MXs, hostname)
 	}
-	if len(domainData.MXs) == 0 {
-		return domainData, fmt.Errorf("no MX hostnames supplied for domain %s", domain)
+	if len(domain.MXs) == 0 {
+		return domain, fmt.Errorf("no MX hostnames supplied for domain %s", domain.Name)
 	}
-	if len(domainData.MXs) > MaxHostnames {
-		return domainData, fmt.Errorf("no more than 8 MX hostnames are permitted")
+	if len(domain.MXs) > MaxHostnames {
+		return domain, fmt.Errorf("no more than 8 MX hostnames are permitted")
 	}
-	return domainData, nil
+	return domain, nil
 }
 
 // Queue is the handler for /api/queue
 //   POST /api/queue?domain=<domain>
 //        domain: Mail domain to queue a TLS policy for.
+//				mta_sts: True if domain supports MTA-STS else false.
 //        hostnames: List of MX hostnames to put into this domain's TLS policy. Up to 8.
 //        Sets models.Domain object as response.
 //        email (optional): Contact email associated with domain.
 //   GET  /api/queue?domain=<domain>
 //        Sets models.Domain object as response.
 func (api API) Queue(r *http.Request) APIResponse {
-	// Retrieve domain param
-	domain, err := getASCIIDomain(r)
-	if err != nil {
-		return badRequest(err.Error())
-	}
 	// POST: Insert this domain into the queue
 	if r.Method == http.MethodPost {
-		// 0. Check if scan occurred.
-		scan, err := api.Database.GetLatestScan(domain)
+		domain, err := getDomainParams(r)
+		if err != nil {
+			return badRequest(err.Error())
+		}
+		// Check if scan occurred.
+		scan, err := api.Database.GetLatestScan(domain.Name)
 		if err != nil {
 			return badRequest("We haven't scanned this domain yet. " +
 				"Please use the STARTTLS checker to scan your domain's " +
 				"STARTTLS configuration so we can validate your submission")
 		}
 		if scan.Data.Status != 0 {
-			return badRequest("%s hasn't passed our STARTTLS security checks", domain)
+			return badRequest("%s hasn't passed our STARTTLS security checks", domain.Name)
 		}
-		// 0. Check to see it's not already queued
-		if _, err := api.List.Get(domain); err == nil {
-			return serverError("%s is already on the list!", domain)
+		// Check to see it's not already on the Policy List.
+		if _, err := api.List.Get(domain.Name); err == nil {
+			return serverError("%s is already on the list!", domain.Name)
 		}
-		domainData, err := getDomainParams(r, domain)
-		if err != nil {
-			return badRequest(err.Error())
-		}
-		// 0. Check that hostnames match.
+		// Check that hostnames match.
 		// if mta_sts && scan.Data.MTASTS.Status != Success {
 		// 	return badRequest("%d does not correctly implement MTA-STS.", domain)
 		// } else if !scan.matchesHostnames(hostnames) {
 		// 	return badRequest("%d is not valid for the supplied hostnames.", domain)
 		// }
 		// 1. Insert domain into DB
-		if err = api.Database.PutDomain(domainData); err != nil {
+		if err = api.Database.PutDomain(domain); err != nil {
 			return serverError(err.Error())
 		}
 		// 2. Create token for domain
-		token, err := api.Database.PutToken(domain)
+		token, err := api.Database.PutToken(domain.Name)
 		if err != nil {
 			return serverError(err.Error())
 		}
 
 		// 3. Send email
-		if err = api.Emailer.SendValidation(&domainData, token.Token); err != nil {
+		if err = api.Emailer.SendValidation(&domain, token.Token); err != nil {
 			log.Print(err)
 			return serverError("Unable to send validation e-mail")
 		}
-		// domainData.State = Unvalidated
-		// or queued?
 		return APIResponse{
 			StatusCode: http.StatusOK,
-			Response:   fmt.Sprintf("Thank you for submitting your domain. Please check postmaster@%s to validate that you control the domain.", domain),
+			Response:   fmt.Sprintf("Thank you for submitting your domain. Please check postmaster@%s to validate that you control the domain.", domain.Name),
 		}
-		// GET: Retrieve domain status from queue
-		// JSON only
-	} else if r.Method == http.MethodGet {
-		status, err := api.Database.GetDomain(domain)
+	}
+	// GET: Retrieve domain status from queue
+	if r.Method == http.MethodGet {
+		domainName, err := getASCIIDomain(r)
+		if err != nil {
+			return badRequest(err.Error())
+		}
+		status, err := api.Database.GetDomain(domainName)
 		if err != nil {
 			return APIResponse{StatusCode: http.StatusNotFound, Message: err.Error()}
 		}
@@ -300,10 +302,9 @@ func (api API) Queue(r *http.Request) APIResponse {
 			StatusCode: http.StatusOK,
 			Response:   status,
 		}
-	} else {
-		return APIResponse{StatusCode: http.StatusMethodNotAllowed,
-			Message: "/api/queue only accepts POST and GET requests"}
 	}
+	return APIResponse{StatusCode: http.StatusMethodNotAllowed,
+		Message: "/api/queue only accepts POST and GET requests"}
 }
 
 // Validate handles requests to /api/validate
