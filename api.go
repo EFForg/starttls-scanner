@@ -248,26 +248,10 @@ func (api API) Queue(r *http.Request) APIResponse {
 		if err != nil {
 			return badRequest(err.Error())
 		}
-		// Check if scan occurred.
-		scan, err := api.Database.GetLatestScan(domain.Name)
-		if err != nil {
-			return badRequest("We haven't scanned this domain yet. " +
-				"Please use the STARTTLS checker to scan your domain's " +
-				"STARTTLS configuration so we can validate your submission")
+		// 0. Verify that we can queue the domain.
+		if ok, msg := domain.IsQueueable(api.Database, api.List); !ok {
+			return badRequest(msg)
 		}
-		if scan.Data.Status != 0 {
-			return badRequest("%s hasn't passed our STARTTLS security checks", domain.Name)
-		}
-		// Check to see it's not already on the Policy List.
-		if _, err := api.List.Get(domain.Name); err == nil {
-			return serverError("%s is already on the list!", domain.Name)
-		}
-		// Check that hostnames match.
-		// if mta_sts && scan.Data.MTASTS.Status != Success {
-		// 	return badRequest("%d does not correctly implement MTA-STS.", domain)
-		// } else if !scan.matchesHostnames(hostnames) {
-		// 	return badRequest("%d is not valid for the supplied hostnames.", domain)
-		// }
 		// 1. Insert domain into DB
 		if err = api.Database.PutDomain(domain); err != nil {
 			return serverError(err.Error())
@@ -277,7 +261,6 @@ func (api API) Queue(r *http.Request) APIResponse {
 		if err != nil {
 			return serverError(err.Error())
 		}
-
 		// 3. Send email
 		if err = api.Emailer.SendValidation(&domain, token.Token); err != nil {
 			log.Print(err)

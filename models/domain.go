@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"github.com/EFForg/starttls-backend/policy"
+)
 
 // Domain stores the preload state of a single domain.
 type Domain struct {
@@ -22,3 +26,30 @@ const (
 	StateFailed      = "failed"      // Requested to be queued, but failed verification.
 	StateAdded       = "added"       // On the list.
 )
+
+type policyList interface {
+	Get(string) (policy.TLSPolicy, error)
+	// HasDomain(string) bool
+}
+
+type scanStore interface {
+	GetLatestScan(string) (Scan, error)
+}
+
+func (d *Domain) IsQueueable(db scanStore, list policyList) (bool, string) {
+	// Check if successful scan occurred.
+	scan, err := db.GetLatestScan(d.Name)
+	if err != nil {
+		return false, "We haven't scanned this domain yet. " +
+			"Please use the STARTTLS checker to scan your domain's " +
+			"STARTTLS configuration so we can validate your submission"
+	}
+	if scan.Data.Status != 0 {
+		return false, "Domain hasn't passed our STARTTLS security checks"
+	}
+	// Check to see it's not already on the Policy List.
+	if _, err := list.Get(d.Name); err == nil {
+		return false, "Domain is already on the policy list!"
+	}
+	return true, ""
+}
