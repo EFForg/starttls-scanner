@@ -207,7 +207,12 @@ func getDomainParams(r *http.Request) (models.Domain, error) {
 	if err != nil {
 		return models.Domain{}, err
 	}
-	domain := models.Domain{Name: name, State: models.StateUnvalidated}
+	mtasts := r.FormValue("mta-sts")
+	domain := models.Domain{
+		Name:       name,
+		MTASTSMode: mtasts,
+		State:      models.StateUnvalidated,
+	}
 	email, err := getParam("email", r)
 	if err == nil {
 		domain.Email = email
@@ -236,7 +241,7 @@ func getDomainParams(r *http.Request) (models.Domain, error) {
 // Queue is the handler for /api/queue
 //   POST /api/queue?domain=<domain>
 //        domain: Mail domain to queue a TLS policy for.
-//				mta_sts: True if domain supports MTA-STS else false.
+//				mta_sts: "on" if domain supports MTA-STS, else "".
 //        hostnames: List of MX hostnames to put into this domain's TLS policy. Up to 8.
 //        Sets models.Domain object as response.
 //        email (optional): Contact email associated with domain.

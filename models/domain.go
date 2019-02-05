@@ -2,6 +2,8 @@ package models
 
 import (
 	"time"
+
+	"github.com/EFForg/starttls-backend/checker"
 )
 
 // Domain stores the preload state of a single domain.
@@ -9,6 +11,7 @@ type Domain struct {
 	Name        string      `json:"domain"` // Domain that is preloaded
 	Email       string      `json:"-"`      // Contact e-mail for Domain
 	MXs         []string    `json:"mxs"`    // MXs that are valid for this domain
+	MTASTSMode  string      `json:"mta_sts"`
 	State       DomainState `json:"state"`
 	LastUpdated time.Time   `json:"last_updated"`
 }
@@ -36,7 +39,6 @@ type scanStore interface {
 // IsQueueable returns true if a domain can be submitted for validation and
 // queueing to the STARTTLS Everywhere Policy List.
 func (d *Domain) IsQueueable(db scanStore, list policyList) (bool, string) {
-	// Check if successful scan occurred.
 	scan, err := db.GetLatestScan(d.Name)
 	if err != nil {
 		return false, "We haven't scanned this domain yet. " +
@@ -46,9 +48,31 @@ func (d *Domain) IsQueueable(db scanStore, list policyList) (bool, string) {
 	if scan.Data.Status != 0 {
 		return false, "Domain hasn't passed our STARTTLS security checks"
 	}
-	// Check to see it's not already on the Policy List.
 	if list.HasDomain(d.Name) {
 		return false, "Domain is already on the policy list!"
 	}
+	if d.MTASTSMode != "" && scan.Data.ExtraResults[checker.MTASTS].Status != checker.Success {
+		return false, "Domain does not correctly implement MTA-STS."
+	} else if !subset(d.MXs, scan.Data.PreferredHostnames) {
+		return false, "Domain is not valid for the supplied hostnames."
+	}
 	return true, ""
+}
+
+func subset(small []string, big []string) bool {
+	for _, s := range small {
+		if !containsString(big, s) {
+			return false
+		}
+	}
+	return true
+}
+
+func containsString(l []string, s string) bool {
+	for _, li := range l {
+		if s == li {
+			return true
+		}
+	}
+	return false
 }
