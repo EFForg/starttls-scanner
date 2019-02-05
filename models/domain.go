@@ -2,8 +2,6 @@ package models
 
 import (
 	"time"
-
-	"github.com/EFForg/starttls-backend/policy"
 )
 
 // Domain stores the preload state of a single domain.
@@ -28,8 +26,7 @@ const (
 )
 
 type policyList interface {
-	Get(string) (policy.TLSPolicy, error)
-	// HasDomain(string) bool
+	HasDomain(string) bool
 }
 
 type scanStore interface {
@@ -48,7 +45,7 @@ func (d *Domain) IsQueueable(db scanStore, list policyList) (bool, string) {
 		return false, "Domain hasn't passed our STARTTLS security checks"
 	}
 	// Check to see it's not already on the Policy List.
-	if _, err := list.Get(d.Name); err == nil {
+	if list.HasDomain(d.Name) {
 		return false, "Domain is already on the policy list!"
 	}
 	return true, ""

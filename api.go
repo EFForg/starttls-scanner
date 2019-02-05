@@ -51,7 +51,7 @@ type API struct {
 // The most important query you can perform is to fetch the policy
 // for a particular domain.
 type PolicyList interface {
-	Get(string) (policy.TLSPolicy, error)
+	HasDomain(string) bool
 	Raw() policy.List
 }
 
@@ -90,7 +90,7 @@ func apiWrapper(api apiHandler) func(w http.ResponseWriter, r *http.Request) {
 // Checks the policy status of this domain.
 func (api API) policyCheck(domain string) *checker.Result {
 	result := checker.Result{Name: checker.PolicyList}
-	if _, err := api.List.Get(domain); err == nil {
+	if api.List.HasDomain(domain) {
 		return result.Success()
 	}
 	domainData, err := api.Database.GetDomain(domain)
