@@ -102,7 +102,7 @@ func (l *UpdatedList) Get(domain string) (TLSPolicy, error) {
 	return l.get(domain)
 }
 
-// Get safely reads from the underlying policy list and returns a TLSPolicy for a domain
+// HasDomain returns true if a domain is present on the policy list.
 func (l *UpdatedList) HasDomain(domain string) bool {
 	_, err := l.Get(domain)
 	return err != nil

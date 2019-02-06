@@ -33,6 +33,8 @@ type scanStore interface {
 	GetLatestScan(string) (Scan, error)
 }
 
+// IsQueueable returns true if a domain can be submitted for validation and
+// queueing to the STARTTLS Everywhere Policy List.
 func (d *Domain) IsQueueable(db scanStore, list policyList) (bool, string) {
 	// Check if successful scan occurred.
 	scan, err := db.GetLatestScan(d.Name)

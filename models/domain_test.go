@@ -35,10 +35,10 @@ func TestIsQueueable(t *testing.T) {
 	if ok || !strings.Contains(msg, "already on the policy list") {
 		t.Error("Domain on policy list should not be queueable")
 	}
-	failed_scan := Scan{
+	failedScan := Scan{
 		Data: checker.DomainResult{Status: checker.DomainFailure},
 	}
-	ok, msg = d.IsQueueable(mockScanStore{failed_scan, nil}, mockList{false})
+	ok, msg = d.IsQueueable(mockScanStore{failedScan, nil}, mockList{false})
 	if ok || !strings.Contains(msg, "hasn't passed") {
 		t.Error("Domain with failing scan should not be queueable")
 	}
