@@ -2,8 +2,6 @@ package models
 
 import (
 	"time"
-
-	"github.com/EFForg/starttls-backend/checker"
 )
 
 // Domain stores the preload state of a single domain.
@@ -51,7 +49,7 @@ func (d *Domain) IsQueueable(db scanStore, list policyList) (bool, string) {
 	if list.HasDomain(d.Name) {
 		return false, "Domain is already on the policy list!"
 	}
-	if d.MTASTSMode != "" && scan.Data.ExtraResults[checker.MTASTS].Status != checker.Success {
+	if d.MTASTSMode != "" && !scan.SupportsMTASTS() {
 		return false, "Domain does not correctly implement MTA-STS."
 	} else if !subset(d.MXs, scan.Data.PreferredHostnames) {
 		return false, "Domain is not valid for the supplied hostnames."
