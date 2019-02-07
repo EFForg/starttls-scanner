@@ -106,6 +106,10 @@ func (c emailConfig) SendValidation(domain *models.Domain, token string) error {
 }
 
 func (c emailConfig) sendEmail(subject string, body string, address string) error {
+	if c.submissionHostname == "" {
+		fmt.Println("Warning: email host not configured, not sending email")
+		return nil
+	}
 	blacklisted, err := c.database.IsBlacklistedEmail(address)
 	if err != nil {
 		return err
