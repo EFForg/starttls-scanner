@@ -34,33 +34,46 @@ func TestIsQueueable(t *testing.T) {
 			MTASTSResult:       checker.MakeMTASTSResult(),
 		},
 	}
-	ok, msg := d.IsQueueable(mockScanStore{goodScan, nil}, mockList{false})
-	if !ok {
-		t.Error("Unadded domain with passing scan should be queueable, got " + msg)
-	}
-	ok, msg = d.IsQueueable(mockScanStore{goodScan, nil}, mockList{true})
-	if ok || !strings.Contains(msg, "already on the policy list") {
-		t.Error("Domain on policy list should not be queueable, got " + msg)
-	}
 	failedScan := Scan{
 		Data: checker.DomainResult{Status: checker.DomainFailure},
-	}
-	ok, msg = d.IsQueueable(mockScanStore{failedScan, nil}, mockList{false})
-	if ok || !strings.Contains(msg, "hasn't passed") {
-		t.Error("Domain with failing scan should not be queueable, got " + msg)
-	}
-	ok, msg = d.IsQueueable(mockScanStore{Scan{}, errors.New("")}, mockList{false})
-	if ok || !strings.Contains(msg, "haven't scanned") {
-		t.Error("Domain without scan should not be queueable, got " + msg)
 	}
 	wrongMXsScan := Scan{
 		Data: checker.DomainResult{
 			PreferredHostnames: []string{"mx1.example.com"},
 		},
 	}
-	ok, msg = d.IsQueueable(mockScanStore{wrongMXsScan, nil}, mockList{false})
-	if ok || !strings.Contains(msg, "supplied hostnames") {
-		t.Error("Domain with mismatched hostnames should not be queueable, got " + msg)
+	var testCases = []struct {
+		name    string
+		scan    Scan
+		scanErr error
+		onList  bool
+		ok      bool
+		msg     string
+	}{
+		{name: "Unadded domain with passing scan should be queueable",
+			scan: goodScan, scanErr: nil, onList: false,
+			ok: true, msg: ""},
+		{name: "Domain on policy list should not be queueable",
+			scan: goodScan, scanErr: nil, onList: true,
+			ok: false, msg: "already on the policy list"},
+		{name: "Domain with failing scan should not be queueable",
+			scan: failedScan, scanErr: nil, onList: false,
+			ok: false, msg: "hasn't passed"},
+		{name: "Domain without scan should not be queueable",
+			scan: goodScan, scanErr: errors.New(""), onList: false,
+			ok: false, msg: "haven't scanned"},
+		{name: "Domain with mismatched hostnames should not be queueable",
+			scan: wrongMXsScan, scanErr: nil, onList: false,
+			ok: false, msg: "supplied hostnames"},
+	}
+	for _, tc := range testCases {
+		ok, msg := d.IsQueueable(mockScanStore{tc.scan, tc.scanErr}, mockList{tc.onList})
+		if ok != tc.ok {
+			t.Error(tc.name)
+		}
+		if !strings.Contains(msg, tc.msg) {
+			t.Errorf("IsQueueable message should contain %s, got %s", tc.msg, msg)
+		}
 	}
 	// With MTA-STS
 	d = Domain{
@@ -68,7 +81,7 @@ func TestIsQueueable(t *testing.T) {
 		Email:      "me@example.com",
 		MTASTSMode: "on",
 	}
-	ok, msg = d.IsQueueable(mockScanStore{goodScan, nil}, mockList{false})
+	ok, msg := d.IsQueueable(mockScanStore{goodScan, nil}, mockList{false})
 	if !ok {
 		t.Error("Unadded domain with passing scan should be queueable, got " + msg)
 	}
