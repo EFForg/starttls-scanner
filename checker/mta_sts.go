@@ -19,9 +19,9 @@ type MTASTSResult struct {
 }
 
 // MakeMTASTSResult constructs a base result object and returns its pointer.
-func MakeMTASTSResult(name string) *MTASTSResult {
+func MakeMTASTSResult() *MTASTSResult {
 	return &MTASTSResult{
-		Result: MakeResult(name),
+		Result: MakeResult(MTASTS),
 	}
 }
 
@@ -170,7 +170,7 @@ func validateMTASTSMXs(policyFileMXs []string, dnsMXs map[string]HostnameResult,
 }
 
 func (c Checker) checkMTASTS(domain string, hostnameResults map[string]HostnameResult) *MTASTSResult {
-	result := MakeMTASTSResult(MTASTS)
+	result := MakeMTASTSResult()
 	result.addCheck(checkMTASTSRecord(domain))
 	policyResult, policy, mode := checkMTASTSPolicyFile(domain, hostnameResults)
 	result.addCheck(policyResult)
