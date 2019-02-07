@@ -255,9 +255,11 @@ func (api API) Queue(r *http.Request) APIResponse {
 			return badRequest(err.Error())
 		}
 		// 0. Verify that we can queue the domain.
-		if ok, msg := domain.IsQueueable(api.Database, api.List); !ok {
+		ok, msg, scan := domain.IsQueueable(api.Database, api.List)
+		if !ok {
 			return badRequest(msg)
 		}
+		domain.PopulateFromScan(scan)
 		// 1. Insert domain into DB
 		if err = api.Database.PutDomain(domain); err != nil {
 			return serverError(err.Error())

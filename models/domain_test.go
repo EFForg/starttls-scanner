@@ -67,7 +67,7 @@ func TestIsQueueable(t *testing.T) {
 			ok: false, msg: "supplied hostnames"},
 	}
 	for _, tc := range testCases {
-		ok, msg := d.IsQueueable(mockScanStore{tc.scan, tc.scanErr}, mockList{tc.onList})
+		ok, msg, _ := d.IsQueueable(mockScanStore{tc.scan, tc.scanErr}, mockList{tc.onList})
 		if ok != tc.ok {
 			t.Error(tc.name)
 		}
@@ -81,7 +81,7 @@ func TestIsQueueable(t *testing.T) {
 		Email:      "me@example.com",
 		MTASTSMode: "on",
 	}
-	ok, msg := d.IsQueueable(mockScanStore{goodScan, nil}, mockList{false})
+	ok, msg, _ := d.IsQueueable(mockScanStore{goodScan, nil}, mockList{false})
 	if !ok {
 		t.Error("Unadded domain with passing scan should be queueable, got " + msg)
 	}
@@ -94,8 +94,31 @@ func TestIsQueueable(t *testing.T) {
 			},
 		},
 	}
-	ok, msg = d.IsQueueable(mockScanStore{noMTASTSScan, nil}, mockList{false})
+	ok, msg, _ = d.IsQueueable(mockScanStore{noMTASTSScan, nil}, mockList{false})
 	if ok || !strings.Contains(msg, "MTA-STS") {
 		t.Error("Domain without MTA-STS or hostnames should not be queueable, got " + msg)
+	}
+}
+
+func TestPopulateFromScan(t *testing.T) {
+	d := Domain{
+		Name:  "example.com",
+		Email: "me@example.com",
+	}
+	s := Scan{
+		Data: checker.DomainResult{
+			PreferredHostnames: []string{"mx1.example.com", "mx2.example.com"},
+			MTASTSResult:       checker.MakeMTASTSResult(),
+		},
+	}
+	s.Data.MTASTSResult.Mode = "enforce"
+	d.PopulateFromScan(s)
+	if d.MTASTSMode != "enforce" {
+		t.Errorf("Expected domain MTA-STS mode to match scan, got %s", d.MTASTSMode)
+	}
+	for i, mx := range s.Data.PreferredHostnames {
+		if mx != d.MXs[i] {
+			t.Errorf("Expected MXs to match scan, got %s", d.MXs)
+		}
 	}
 }
