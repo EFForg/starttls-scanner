@@ -220,20 +220,22 @@ func getDomainParams(r *http.Request) (models.Domain, error) {
 		domain.Email = validationAddress(&domain)
 	}
 
-	for _, hostname := range r.PostForm["hostnames"] {
-		if len(hostname) == 0 {
-			continue
+	if mtasts != "on" {
+		for _, hostname := range r.PostForm["hostnames"] {
+			if len(hostname) == 0 {
+				continue
+			}
+			if !validDomainName(strings.TrimPrefix(hostname, ".")) {
+				return domain, fmt.Errorf("Hostname %s is invalid", hostname)
+			}
+			domain.MXs = append(domain.MXs, hostname)
 		}
-		if !validDomainName(strings.TrimPrefix(hostname, ".")) {
-			return domain, fmt.Errorf("hostname %s is invalid", hostname)
+		if len(domain.MXs) == 0 {
+			return domain, fmt.Errorf("No MX hostnames supplied for domain %s", domain.Name)
 		}
-		domain.MXs = append(domain.MXs, hostname)
-	}
-	if len(domain.MXs) == 0 {
-		return domain, fmt.Errorf("no MX hostnames supplied for domain %s", domain.Name)
-	}
-	if len(domain.MXs) > MaxHostnames {
-		return domain, fmt.Errorf("no more than 8 MX hostnames are permitted")
+		if len(domain.MXs) > MaxHostnames {
+			return domain, fmt.Errorf("No more than 8 MX hostnames are permitted")
+		}
 	}
 	return domain, nil
 }
