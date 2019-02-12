@@ -113,7 +113,7 @@ func checkMTASTSPolicyFile(domain string, hostnameResults map[string]HostnameRes
 	// Format: Content-Type := type "/" subtype *[";" parameter]
 	for _, contentType := range resp.Header["Content-Type"] {
 		contentType := strings.ToLower(contentType)
-		if strings.HasPrefix(contentType, "text/plain") {
+		if !strings.HasPrefix(contentType, "text/plain") {
 			result.Warning("The media type specified by your policy file's Content-Type header should be text/plain.")
 		}
 	}
