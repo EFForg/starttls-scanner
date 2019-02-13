@@ -141,7 +141,7 @@ func validateMTASTSPolicyFile(body string, result *Result) map[string]string {
 	if m := policy["mode"]; m == "testing" {
 		result.Warning("You're still in \"testing\" mode; senders won't enforce TLS when connecting to your mailservers. We recommend switching from \"testing\" to \"enforce\" to get the full security benefits of MTA-STS, as long as it hasn't been affecting your deliverability.")
 	} else if m == "none" {
-		result.Warning("@sydneyli message for \"none\" mode here")
+		result.Failure("MTA-STS policy is in \"none\" mode; senders won't enforce TLS when connecting to your mailservers.")
 	} else if m != "enforce" {
 		result.Failure("Mode must be one of \"enforce\", \"testing\", or \"none\", got %s", m)
 	}
