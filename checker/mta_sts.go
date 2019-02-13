@@ -88,7 +88,7 @@ func validateMTASTSRecord(records []string, result *Result) *Result {
 
 	idPattern := regexp.MustCompile("^[a-zA-Z0-9]+$")
 	if !idPattern.MatchString(record["id"]) {
-		return result.Failure("Invalid MTA-STS DNS record id %s.", record["id"])
+		return result.Failure("Invalid MTA-STS TXT record id %s.", record["id"])
 	}
 	return result.Success()
 }
