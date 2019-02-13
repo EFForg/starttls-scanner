@@ -35,7 +35,10 @@ type scanStore interface {
 }
 
 // IsQueueable returns true if a domain can be submitted for validation and
-// queueing to the STARTTLS Everywhere Policy List.
+ // queueing to the STARTTLS Everywhere Policy List.
+ // A successful scan should already have been submitted for this domain,
+ // and it should not already be on the policy list.
+ // Returns (queuability, error message, and most recent scan)
 func (d *Domain) IsQueueable(db scanStore, list policyList) (bool, string, Scan) {
 	scan, err := db.GetLatestScan(d.Name)
 	if err != nil {
