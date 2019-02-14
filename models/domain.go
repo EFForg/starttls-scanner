@@ -1,7 +1,10 @@
 package models
 
 import (
+	"fmt"
 	"time"
+
+	"github.com/EFForg/starttls-backend/checker"
 )
 
 // Domain stores the preload state of a single domain.
@@ -35,10 +38,10 @@ type scanStore interface {
 }
 
 // IsQueueable returns true if a domain can be submitted for validation and
- // queueing to the STARTTLS Everywhere Policy List.
- // A successful scan should already have been submitted for this domain,
- // and it should not already be on the policy list.
- // Returns (queuability, error message, and most recent scan)
+// queueing to the STARTTLS Everywhere Policy List.
+// A successful scan should already have been submitted for this domain,
+// and it should not already be on the policy list.
+// Returns (queuability, error message, and most recent scan)
 func (d *Domain) IsQueueable(db scanStore, list policyList) (bool, string, Scan) {
 	scan, err := db.GetLatestScan(d.Name)
 	if err != nil {
@@ -52,10 +55,14 @@ func (d *Domain) IsQueueable(db scanStore, list policyList) (bool, string, Scan)
 	if list.HasDomain(d.Name) {
 		return false, "Domain is already on the policy list!", scan
 	}
-	if d.MTASTSMode != "" && !scan.SupportsMTASTS() {
+	if d.MTASTSMode == "" {
+		for _, hostname := range scan.Data.PreferredHostnames {
+			if !checker.PolicyMatches(hostname, d.MXs) {
+				return false, fmt.Sprintf("Hostnames %v do not match policy %v", scan.Data.PreferredHostnames, d.MXs), scan
+			}
+		}
+	} else if !scan.SupportsMTASTS() {
 		return false, "Domain does not correctly implement MTA-STS.", scan
-	} else if !subset(d.MXs, scan.Data.PreferredHostnames) {
-		return false, "Domain is not valid for the supplied hostnames.", scan
 	}
 	return true, "", scan
 }
@@ -72,22 +79,4 @@ func (d *Domain) PopulateFromScan(scan Scan) {
 			d.MXs = scan.Data.PreferredHostnames
 		}
 	}
-}
-
-func subset(small []string, big []string) bool {
-	for _, s := range small {
-		if !containsString(big, s) {
-			return false
-		}
-	}
-	return true
-}
-
-func containsString(l []string, s string) bool {
-	for _, li := range l {
-		if s == li {
-			return true
-		}
-	}
-	return false
 }

@@ -159,7 +159,7 @@ func validateMTASTSMXs(policyFileMXs []string, dnsMXs map[string]HostnameResult,
 			// Ignore hostnames we couldn't connect to, they may be spam traps.
 			continue
 		}
-		if !policyMatches(dnsMX, policyFileMXs) {
+		if !PolicyMatches(dnsMX, policyFileMXs) {
 			result.Warning("%s appears in the DNS record but not the MTA-STS policy file",
 				dnsMX)
 		} else if !dnsMXResult.couldSTARTTLS() {

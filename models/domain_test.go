@@ -26,7 +26,7 @@ func TestIsQueueable(t *testing.T) {
 	d := Domain{
 		Name:  "example.com",
 		Email: "me@example.com",
-		MXs:   []string{"mx1.example.com", "mx2.example.com"},
+		MXs:   []string{".example.com"},
 	}
 	goodScan := Scan{
 		Data: checker.DomainResult{
@@ -39,7 +39,7 @@ func TestIsQueueable(t *testing.T) {
 	}
 	wrongMXsScan := Scan{
 		Data: checker.DomainResult{
-			PreferredHostnames: []string{"mx1.example.com"},
+			PreferredHostnames: []string{"mx1.nomatch.example.com"},
 		},
 	}
 	var testCases = []struct {
@@ -64,7 +64,7 @@ func TestIsQueueable(t *testing.T) {
 			ok: false, msg: "haven't scanned"},
 		{name: "Domain with mismatched hostnames should not be queueable",
 			scan: wrongMXsScan, scanErr: nil, onList: false,
-			ok: false, msg: "supplied hostnames"},
+			ok: false, msg: "do not match policy"},
 	}
 	for _, tc := range testCases {
 		ok, msg, _ := d.IsQueueable(mockScanStore{tc.scan, tc.scanErr}, mockList{tc.onList})
