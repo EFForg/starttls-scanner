@@ -107,16 +107,16 @@ func TestPopulateFromScan(t *testing.T) {
 	}
 	s := Scan{
 		Data: checker.DomainResult{
-			PreferredHostnames: []string{"mx1.example.com", "mx2.example.com"},
-			MTASTSResult:       checker.MakeMTASTSResult(),
+			MTASTSResult: checker.MakeMTASTSResult(),
 		},
 	}
 	s.Data.MTASTSResult.Mode = "enforce"
+	s.Data.MTASTSResult.MXs = []string{"mx1.example.com", "mx2.example.com"}
 	d.PopulateFromScan(s)
 	if d.MTASTSMode != "enforce" {
 		t.Errorf("Expected domain MTA-STS mode to match scan, got %s", d.MTASTSMode)
 	}
-	for i, mx := range s.Data.PreferredHostnames {
+	for i, mx := range s.Data.MTASTSResult.MXs {
 		if mx != d.MXs[i] {
 			t.Errorf("Expected MXs to match scan, got %s", d.MXs)
 		}

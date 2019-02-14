@@ -185,6 +185,8 @@ func NewSampleDomainResult(domain string) DomainResult {
 					MTASTSPolicyFile: MakeResult(MTASTSPolicyFile),
 				},
 			},
+			Mode: "enforce",
+			MXs:  []string{"." + domain},
 		},
 		ExtraResults: map[string]*Result{
 			PolicyList: MakeResult(PolicyList),
