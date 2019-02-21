@@ -405,7 +405,7 @@ func expectStats(ts models.TimeSeries, t *testing.T) {
 	// We need to truncate the expected times and convert to UTC for comparison.
 	expected := make(map[time.Time]float32)
 	for kOld, v := range ts {
-		k := kOld.UTC().Truncate(24 * time.Hour)
+		k := kOld.Truncate(24 * time.Hour)
 		expected[k] = v
 	}
 	got, err := database.GetMTASTSStats()

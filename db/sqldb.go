@@ -154,8 +154,7 @@ func (db *SQLDatabase) GetMTASTSStats() (models.TimeSeries, error) {
 		if err := rows.Scan(&t, &count); err != nil {
 			return nil, err
 		}
-		// @TODO think about timezones
-		ts[t.UTC()] = count
+		ts[t.Local()] = count
 	}
 	return ts, nil
 }
