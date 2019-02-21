@@ -124,6 +124,8 @@ func (db *SQLDatabase) PutScan(scan models.Scan) error {
 func (db *SQLDatabase) GetMTASTSStats() (models.TimeSeries, error) {
 	// "day" represents truncated date (ie beginning of day), but windows should
 	// include the full day, so we add a day when querying timestamps.
+	// Getting the most recent 31 days for now, we can set the start date to the
+	// beginning of our MTA-STS data once we have some.
 	query := `
 		SELECT day, 100.0 * SUM(
 			CASE WHEN mta_sts_mode = 'testing' THEN 1 ELSE 0 END +
