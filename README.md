@@ -39,6 +39,8 @@ Test all packages in this repo with
 go test -v ./...
 ```
 
+The `main` and `db` packages contain integration tests that require a successful connection to the Postgres database. The remaining packages do not require the database to pass tests.
+
 ## Configuration
 
 ### No-scan domains
