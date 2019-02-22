@@ -32,6 +32,13 @@ docker-compose up
 
 To automatically on container start, set `DB_MIGRATE=true` in the `.env` file.
 
+## Testing
+
+Test all packages in this repo with
+```
+go test -v ./...
+```
+
 ## Configuration
 
 ### No-scan domains
