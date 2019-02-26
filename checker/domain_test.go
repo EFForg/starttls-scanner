@@ -193,18 +193,30 @@ func TestNewSampleDomainResult(t *testing.T) {
 }
 
 func TestCheckList(t *testing.T) {
-	domains := []string{"empty", "changes", "domain", "domain.tld", "noconnection", "noconnection2", "nostarttls"}
-
+	domains := []string{
+		"empty",
+		"domain",
+		"domain.tld",
+		"noconnection",
+		"noconnection2",
+		"nostarttls",
+	}
 	c := Checker{
-		lookupMX:            mockLookupMX,
-		checkHostname:       mockCheckHostname,
-		checkMTASTSOverride: mockCheckMTASTS,
+		lookupMXOverride:      mockLookupMX,
+		checkHostnameOverride: mockCheckHostname,
+		checkMTASTSOverride:   mockCheckMTASTS,
 	}
 
 	aggResult := AggregatedMTASTSResult{}
 	c.CheckList(domains, &aggResult)
 
-	if aggResult.Attempted != 7 {
-		t.Errorf("Expected 7 attempted connections, got %d", aggResult.Attempted)
+	if aggResult.Attempted != 6 {
+		t.Errorf("Expected 6 attempted connections, got %d", aggResult.Attempted)
+	}
+	if aggResult.Connected != 4 {
+		t.Errorf("Expected 4 successfully connecting domains, got %d", aggResult.Connected)
+	}
+	if aggResult.Testing != 4 {
+		t.Errorf("Expected 4 domains in MTA-STS testing mode, got %d", aggResult.Testing)
 	}
 }
