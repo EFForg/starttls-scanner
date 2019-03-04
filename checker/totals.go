@@ -15,7 +15,7 @@ type DomainTotals struct {
 	Time          time.Time
 	Source        string
 	Attempted     int
-	Connected     int // Connected to at least one mx
+	WithMXs       int
 	MTASTSTesting []string
 	MTASTSEnforce []string
 }
@@ -30,11 +30,11 @@ func (t *DomainTotals) HandleDomain(r DomainResult) {
 		log.Println(t.MTASTSEnforce)
 	}
 
-	// If DomainStatus is > 4, we couldn't connect to a mailbox.
-	if r.Status > 4 {
+	if len(r.HostnameResults) == 0 {
+		// No MX records - assume this isn't an email domain.
 		return
 	}
-	t.Connected++
+	t.WithMXs++
 	if r.MTASTSResult != nil {
 		switch r.MTASTSResult.Mode {
 		case "enforce":
@@ -46,8 +46,8 @@ func (t *DomainTotals) HandleDomain(r DomainResult) {
 }
 
 func (t DomainTotals) String() string {
-	s := strings.Join([]string{"time", "source", "attempted", "connected", "mta_sts_testing", "mta_sts_enforce"}, "\t") + "\n"
-	s += fmt.Sprintf("%v\t%s\t%d\t%d\t%d\t%d\n", t.Time, t.Source, t.Attempted, t.Connected, len(t.MTASTSTesting), len(t.MTASTSEnforce))
+	s := strings.Join([]string{"time", "source", "attempted", "with_mxs", "mta_sts_testing", "mta_sts_enforce"}, "\t") + "\n"
+	s += fmt.Sprintf("%v\t%s\t%d\t%d\t%d\t%d\n", t.Time, t.Source, t.Attempted, t.WithMXs, len(t.MTASTSTesting), len(t.MTASTSEnforce))
 	return s
 }
 
