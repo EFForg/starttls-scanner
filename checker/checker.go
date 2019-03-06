@@ -13,6 +13,7 @@ type Checker struct {
 	Timeout time.Duration
 
 	// Cache specifies the hostname scan cache store and expire time.
+	// If `nil`, then scans are not cached.
 	Cache *ScanCache
 
 	// lookupMX specifies an alternate function to retrieve hostnames for a given
