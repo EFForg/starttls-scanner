@@ -41,7 +41,7 @@ func main() {
 	c := checker.Checker{
 		Cache: checker.MakeSimpleCache(10 * time.Minute),
 	}
-	w := DomainWriter{}
+	w := domainWriter{}
 
 	if *domain != "" {
 		// Handle single domain and return
@@ -53,6 +53,7 @@ func main() {
 	var instream io.Reader
 	if *filePath != "" {
 		csvFile, err := os.Open(*filePath)
+		defer csvFile.Close()
 		if err != nil {
 			log.Println(err)
 			os.Exit(1)
@@ -73,9 +74,9 @@ func main() {
 	c.CheckCSV(domainReader, &w, 0)
 }
 
-type DomainWriter struct{}
+type domainWriter struct{}
 
-func (w DomainWriter) HandleDomain(r checker.DomainResult) {
+func (w domainWriter) HandleDomain(r checker.DomainResult) {
 	b, err := json.Marshal(r)
 	if err != nil {
 		fmt.Println(err)

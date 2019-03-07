@@ -7,9 +7,6 @@ import (
 	"time"
 )
 
-// Sources for aggregated domain statistics
-const MajesticMillion = "majestic-million"
-
 // DomainTotals compiled aggregated stats across domains.
 // Implements ResultHandler.
 type DomainTotals struct {
@@ -21,9 +18,9 @@ type DomainTotals struct {
 	MTASTSEnforce []string
 }
 
-// Add the result of a single domain check to aggregated stats.
+// HandleDomain adds the result of a single domain scan to aggregated stats.
 func (t *DomainTotals) HandleDomain(r DomainResult) {
-	t.Attempted += 1
+	t.Attempted++
 	// Show progress.
 	if t.Attempted%1000 == 0 {
 		log.Printf("%+v\n", t)
@@ -33,7 +30,7 @@ func (t *DomainTotals) HandleDomain(r DomainResult) {
 	if r.Status > 4 {
 		return
 	}
-	t.Connected += 1
+	t.Connected++
 	if r.MTASTSResult != nil {
 		switch r.MTASTSResult.Mode {
 		case "enforce":
@@ -52,7 +49,7 @@ type ResultHandler interface {
 
 const poolSize = 16
 
-// CheckList runs checks on a list of domains, processing the results according
+// CheckCSV runs the checker on a csv of domains, processing the results according
 // to resultHandler.
 func (c *Checker) CheckCSV(domains *csv.Reader, resultHandler ResultHandler, domainColumn int) {
 	work := make(chan string)

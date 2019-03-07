@@ -352,6 +352,7 @@ func (db *SQLDatabase) PutHostnameScan(hostname string, result checker.HostnameR
 	return err
 }
 
+// PutDomainTotals writes writes aggregated statistics from multiple scans to the database.
 func (db *SQLDatabase) PutDomainTotals(totals checker.DomainTotals) error {
 	_, err := db.conn.Exec("INSERT INTO domain_totals(time, source, attempted, connected, mta_sts_testing, mta_sts_enforce) VALUES($1, $2, $3, $4, $5, $6)",
 		totals.Time, totals.Source, totals.Attempted, totals.Connected, len(totals.MTASTSTesting), len(totals.MTASTSEnforce))

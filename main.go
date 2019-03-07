@@ -101,7 +101,7 @@ func main() {
 	}
 	if len(os.Args) > 1 {
 		// Use the CLI to run a task other than starting the server.
-		runTask(os.Args[1])
+		runTask(os.Args[1], db)
 		os.Exit(0)
 	}
 	emailConfig, err := makeEmailConfigFromEnv(db)
