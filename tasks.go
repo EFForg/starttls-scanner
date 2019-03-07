@@ -14,12 +14,12 @@ import (
 func runTask(name string, db db.Database) {
 	switch name {
 	case "update-stats":
-		updateStats(db)
+		updateStats("http://downloads.majestic.com/majestic_million.csv", db)
 	}
 }
 
-func updateStats(db db.Database) {
-	resp, err := http.Get("http://downloads.majestic.com/majestic_million.csv")
+func updateStats(url string, db db.Database) {
+	resp, err := http.Get(url)
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
