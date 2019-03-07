@@ -22,6 +22,14 @@ go build
 ./starttls-backend
 ```
 
+### Gathering domain statistics
+To run a scan of the Majestic Million top domains and write the aggregated
+results of that scan to the database run
+```
+./starttls-backend update-stats
+```
+
+
 ### Via Docker
 ```
 cp .env.example .env
