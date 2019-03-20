@@ -15,7 +15,7 @@ import (
 	"github.com/EFForg/starttls-backend/checker"
 )
 
-func setFlags() (domain, filePath, url *string) {
+func setFlags() (domain, filePath, url *string, aggregate *bool) {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
 		flag.PrintDefaults()
@@ -23,6 +23,7 @@ func setFlags() (domain, filePath, url *string) {
 	domain = flag.String("domain", "", "Domain to check")
 	filePath = flag.String("file", "", "File path to a CSV of domains to check")
 	url = flag.String("url", "", "URL of a CSV of domains to check")
+	aggregate = flag.Bool("aggregate", false, "Write aggregated MTA-STS statistics to database, specified by ENV")
 
 	flag.Parse()
 	if *domain == "" && *filePath == "" && *url == "" {
@@ -36,21 +37,23 @@ func setFlags() (domain, filePath, url *string) {
 // =================================================
 // Validating (START)TLS configurations for all MX domains.
 func main() {
-	domain, filePath, url := setFlags()
+	domain, filePath, url, aggregate := setFlags()
 
 	c := checker.Checker{
 		Cache: checker.MakeSimpleCache(10 * time.Minute),
 	}
-	w := domainWriter{}
+	var resultHandler checker.ResultHandler
+	resultHandler = &domainWriter{}
 
 	if *domain != "" {
 		// Handle single domain and return
 		result := c.CheckDomain(*domain, nil)
-		w.HandleDomain(result)
+		resultHandler.HandleDomain(result)
 		os.Exit(0)
 	}
 
 	var instream io.Reader
+	var label string
 	if *filePath != "" {
 		csvFile, err := os.Open(*filePath)
 		defer csvFile.Close()
@@ -59,6 +62,7 @@ func main() {
 			os.Exit(1)
 		}
 		instream = bufio.NewReader(csvFile)
+		label = csvFile.Name()
 	} else {
 		resp, err := http.Get(*url)
 		if err != nil {
@@ -66,12 +70,19 @@ func main() {
 			os.Exit(1)
 		}
 		instream = resp.Body
+		label = *url
 	}
 
 	domainReader := csv.NewReader(instream)
+	if *aggregate {
+		resultHandler = &checker.DomainTotals{
+			Time:   time.Now(),
+			Source: label,
+		}
+	}
 	// Assume domains are in the 0th column, eg just a newline-separated list
 	// of domains. Could pass this is a flag.
-	c.CheckCSV(domainReader, &w, 0)
+	c.CheckCSV(domainReader, resultHandler, 0)
 }
 
 type domainWriter struct{}
