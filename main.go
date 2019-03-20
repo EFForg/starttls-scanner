@@ -99,11 +99,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if len(os.Args) > 1 {
-		// Use the CLI to run a task other than starting the server.
-		runTask(os.Args[1], db)
-		os.Exit(0)
-	}
 	emailConfig, err := makeEmailConfigFromEnv(db)
 	if err != nil {
 		log.Printf("couldn't connect to mailserver: %v", err)

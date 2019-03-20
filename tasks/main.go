@@ -9,10 +9,28 @@ import (
 
 	"github.com/EFForg/starttls-backend/checker"
 	"github.com/EFForg/starttls-backend/db"
+	raven "github.com/getsentry/raven-go"
+	"github.com/joho/godotenv"
 )
 
-func runTask(name string, db db.Database) {
-	switch name {
+func main() {
+	if len(os.Args) <= 1 {
+		log.Println("Please specify a task")
+		os.Exit(1)
+	}
+
+	godotenv.Load("../.env")
+	raven.SetDSN(os.Getenv("SENTRY_URL"))
+	cfg, err := db.LoadEnvironmentVariables()
+	if err != nil {
+		log.Fatal(err)
+	}
+	db, err := db.InitSQLDatabase(cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	switch os.Args[1] {
 	case "update-stats":
 		updateStats("http://downloads.majestic.com/majestic_million.csv", db)
 	}
