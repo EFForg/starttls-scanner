@@ -35,7 +35,7 @@ func TestUpdateStats(t *testing.T) {
 		Source:    ts.URL,
 		Attempted: 3,
 	}.String()
-	expected = strings.ReplaceAll(expected, time.Time{}.String(), ".*")
+	expected = strings.Replace(expected, time.Time{}.String(), ".*", 1)
 	re := regexp.MustCompile(expected)
 
 	if !re.MatchString(got) {
