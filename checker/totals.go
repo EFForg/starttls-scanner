@@ -2,8 +2,10 @@ package checker
 
 import (
 	"encoding/csv"
+	"fmt"
 	"io"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -23,7 +25,9 @@ func (t *DomainTotals) HandleDomain(r DomainResult) {
 	t.Attempted++
 	// Show progress.
 	if t.Attempted%1000 == 0 {
-		log.Printf("%+v\n", t)
+		log.Printf("\n%v\n", t)
+		log.Println(t.MTASTSTesting)
+		log.Println(t.MTASTSEnforce)
 	}
 
 	// If DomainStatus is > 4, we couldn't connect to a mailbox.
@@ -39,6 +43,12 @@ func (t *DomainTotals) HandleDomain(r DomainResult) {
 			t.MTASTSTesting = append(t.MTASTSTesting, r.Domain)
 		}
 	}
+}
+
+func (t DomainTotals) String() string {
+	s := strings.Join([]string{"time", "source", "attempted", "connected", "mta_sts_testing", "mta_sts_enforce"}, "\t") + "\n"
+	s += fmt.Sprintf("%v\t%s\t%d\t%d\t%d\t%d\n", t.Time, t.Source, t.Attempted, t.Connected, len(t.MTASTSTesting), len(t.MTASTSEnforce))
+	return s
 }
 
 // ResultHandler processes domain results.

@@ -1,40 +1,44 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"regexp"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/EFForg/starttls-backend/checker"
 )
 
-// func TestMain(m *testing.M) {
-// 	godotenv.Overload("../.env.test")
-// 	code := m.Run()
-// 	os.Exit(code)
-// }
-
 func TestUpdateStats(t *testing.T) {
-	// cfg, err := db.LoadEnvironmentVariables()
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// database, err := db.InitSQLDatabase(cfg)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	out = new(bytes.Buffer)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, `example1.com
-example2.com
-example3.com`)
+		fmt.Fprintln(w, `1,foo,example1.com
+2,bar,example2.com
+3,baz,example3.com`)
 	}))
 	defer ts.Close()
 
 	oldArgs := os.Args
 	defer func() { os.Args = oldArgs }()
-	os.Args = []string{"starttls-checker", "-url", ts.URL, "-aggregate=true"}
+	os.Args = []string{"starttls-checker", "--url", ts.URL, "--aggregate=true", "--column=2"}
 
+	// @TODO make this faster
 	main()
-	// @TODO make this faster!
-	// @TODO test that we can read out stats correctly, pending code to read stats.
+	got := out.(*bytes.Buffer).String()
+	expected := checker.DomainTotals{
+		Time:      time.Time{},
+		Source:    ts.URL,
+		Attempted: 3,
+	}.String()
+	expected = strings.ReplaceAll(expected, time.Time{}.String(), ".*")
+	re := regexp.MustCompile(expected)
+
+	if !re.MatchString(got) {
+		t.Errorf("Expected:\n%s\nGot:\n%s", expected, got)
+	}
 }
