@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -88,38 +89,8 @@ func (api *API) wrapper(handler apiHandler) func(w http.ResponseWriter, r *http.
 	}
 }
 
-// Checks the policy status of this domain.
-func (api API) policyCheck(domain string) *checker.Result {
-	result := checker.Result{Name: checker.PolicyList}
-	if api.List.HasDomain(domain) {
-		return result.Success()
-	}
-	domainData, err := api.Database.GetDomain(domain)
-	if err != nil {
-		return result.Failure("Domain %s is not on the policy list.", domain)
-	}
-	if domainData.State == models.StateAdded {
-		log.Println("Warning: Domain was StateAdded in DB but was not found on the policy list.")
-		return result.Success()
-	} else if domainData.State == models.StateQueued {
-		return result.Warning("Domain %s is queued to be added to the policy list.", domain)
-	} else if domainData.State == models.StateUnvalidated {
-		return result.Warning("The policy addition request for %s is waiting on email validation", domain)
-	}
-	return result.Failure("Domain %s is not on the policy list.", domain)
-}
-
-// Performs policyCheck asynchronously.
-// Should be safe since Database is safe for concurrent use, and so
-// is List.
-func asyncPolicyCheck(api API, domain string) <-chan checker.Result {
-	result := make(chan checker.Result)
-	go func() { result <- *api.policyCheck(domain) }()
-	return result
-}
-
 func defaultCheck(api API, domain string) (checker.DomainResult, error) {
-	policyChan := asyncPolicyCheck(api, domain)
+	policyChan := models.Domain{Name: domain}.AsyncPolicyListCheck(api.Database, api.List)
 	c := checker.Checker{
 		Cache: &checker.ScanCache{
 			ScanStore:  api.Database,
@@ -219,6 +190,11 @@ func getDomainParams(r *http.Request) (models.Domain, error) {
 	} else {
 		domain.Email = validationAddress(&domain)
 	}
+	queueWeeks, err := getInt("weeks", r, 4, 52, 4)
+	if err != nil {
+		return domain, err
+	}
+	domain.QueueWeeks = queueWeeks
 
 	if mtasts != "on" {
 		for _, hostname := range r.PostForm["hostnames"] {
@@ -246,6 +222,7 @@ func getDomainParams(r *http.Request) (models.Domain, error) {
 //				mta_sts: "on" if domain supports MTA-STS, else "".
 //        hostnames: List of MX hostnames to put into this domain's TLS policy. Up to 8.
 //        Sets models.Domain object as response.
+//        weeks (optional, default 4): How many weeks is this domain queued for.
 //        email (optional): Contact email associated with domain.
 //   GET  /api/queue?domain=<domain>
 //        Sets models.Domain object as response.
@@ -256,23 +233,16 @@ func (api API) Queue(r *http.Request) APIResponse {
 		if err != nil {
 			return badRequest(err.Error())
 		}
-		// 0. Verify that we can queue the domain.
 		ok, msg, scan := domain.IsQueueable(api.Database, api.List)
 		if !ok {
 			return badRequest(msg)
 		}
 		domain.PopulateFromScan(scan)
-		// 1. Insert domain into DB
-		if err = api.Database.PutDomain(domain); err != nil {
-			return serverError(err.Error())
-		}
-		// 2. Create token for domain
-		token, err := api.Database.PutToken(domain.Name)
+		token, err := domain.InitializeWithToken(api.Database, api.Database)
 		if err != nil {
 			return serverError(err.Error())
 		}
-		// 3. Send email
-		if err = api.Emailer.SendValidation(&domain, token.Token); err != nil {
+		if err = api.Emailer.SendValidation(&domain, token); err != nil {
 			log.Print(err)
 			return serverError("Unable to send validation e-mail")
 		}
@@ -313,23 +283,13 @@ func (api API) Validate(r *http.Request) APIResponse {
 		return APIResponse{StatusCode: http.StatusMethodNotAllowed,
 			Message: "/api/validate only accepts POST requests"}
 	}
-	// 1. Use the token
-	domain, err := api.Database.UseToken(token)
-	if err != nil {
-		return APIResponse{StatusCode: http.StatusBadRequest, Message: err.Error()}
+	tokenData := models.Token{Token: token}
+	domain, userErr, dbErr := tokenData.Redeem(api.Database, api.Database)
+	if userErr != nil {
+		return badRequest(userErr.Error())
 	}
-	// 2. Update domain status from "UNVALIDATED" to "QUEUED"
-	domainData, err := api.Database.GetDomain(domain)
-	if err != nil {
-		return APIResponse{StatusCode: http.StatusInternalServerError, Message: err.Error()}
-	}
-	err = api.Database.PutDomain(models.Domain{
-		Name:  domainData.Name,
-		Email: domainData.Email,
-		State: models.StateQueued,
-	})
-	if err != nil {
-		return APIResponse{StatusCode: http.StatusInternalServerError, Message: err.Error()}
+	if dbErr != nil {
+		return serverError(dbErr.Error())
 	}
 	return APIResponse{StatusCode: http.StatusOK, Response: domain}
 }
@@ -349,13 +309,34 @@ func getASCIIDomain(r *http.Request) (string, error) {
 }
 
 // Retrieves and lowercases `param` as a query parameter from `http.Request` r.
-// If fails, then writes error to `http.ResponseWriter` w.
+// If fails, then returns an error.
 func getParam(param string, r *http.Request) (string, error) {
 	unicode := r.FormValue(param)
 	if unicode == "" {
 		return "", fmt.Errorf("query parameter %s not specified", param)
 	}
 	return strings.ToLower(unicode), nil
+}
+
+// Retrieves `param` as a query parameter from `http.Request` r, and tries to cast it as
+// a number between [lowInc, highExc). If fails, then returns an error.
+// If `param` isn't specified, return defaultNum.
+func getInt(param string, r *http.Request, lowInc int, highExc int, defaultNum int) (int, error) {
+	unicode := r.FormValue(param)
+	if unicode == "" {
+		return defaultNum, nil
+	}
+	n, err := strconv.Atoi(unicode)
+	if err != nil {
+		return -1, err
+	}
+	if n < lowInc {
+		return n, fmt.Errorf("expected query parameter %s to be more than or equal to %d, was %d", param, lowInc, n)
+	}
+	if n >= highExc {
+		return n, fmt.Errorf("expected query parameter %s to be less than %d, was %d", param, highExc, n)
+	}
+	return n, nil
 }
 
 // Writes `v` as a JSON object to http.ResponseWriter `w`. If an error
