@@ -230,6 +230,7 @@ func (c *Checker) checkHostname(domain string, hostname string) HostnameResult {
 	return hostnameResult
 }
 
+// NoopCheckHostname returns a fake error result containing `domain` and `hostname`.
 func NoopCheckHostname(domain string, hostname string, _ time.Duration) HostnameResult {
 	r := HostnameResult{
 		Domain:   domain,
