@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -127,7 +128,8 @@ func checkMTASTSPolicyFile(domain string, hostnameResults map[string]HostnameRes
 		}
 	}
 	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	// Read up to 10,000 bytes of response body.
+	body, err := ioutil.ReadAll(io.LimitReader(resp.Body, 10000))
 	if err != nil {
 		return result.Error("Couldn't read policy file: %v.", err), "", map[string]string{}
 	}
