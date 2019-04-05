@@ -1,6 +1,7 @@
 package checker
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -9,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // MTASTSResult represents the result of a check for inbound MTA-STS support.
@@ -73,9 +75,12 @@ func getKeyValuePairs(record string, lineDelimiter string,
 	return parsed
 }
 
-func checkMTASTSRecord(domain string) *Result {
+func checkMTASTSRecord(domain string, timeout time.Duration) *Result {
 	result := MakeResult(MTASTSText)
-	records, err := net.LookupTXT(fmt.Sprintf("_mta-sts.%s", domain))
+	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+	defer cancel()
+	var r net.Resolver
+	records, err := r.LookupTXT(ctx, fmt.Sprintf("_mta-sts.%s", domain))
 	if err != nil {
 		return result.Failure("Couldn't find an MTA-STS TXT record: %v.", err)
 	}
@@ -96,9 +101,10 @@ func validateMTASTSRecord(records []string, result *Result) *Result {
 	return result.Success()
 }
 
-func checkMTASTSPolicyFile(domain string, hostnameResults map[string]HostnameResult) (*Result, string, map[string]string) {
+func checkMTASTSPolicyFile(domain string, hostnameResults map[string]HostnameResult, timeout time.Duration) (*Result, string, map[string]string) {
 	result := MakeResult(MTASTSPolicyFile)
 	client := &http.Client{
+		Timeout: timeout,
 		// Don't follow redirects.
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -182,8 +188,8 @@ func (c Checker) checkMTASTS(domain string, hostnameResults map[string]HostnameR
 		return c.checkMTASTSOverride(domain, hostnameResults)
 	}
 	result := MakeMTASTSResult()
-	result.addCheck(checkMTASTSRecord(domain))
-	policyResult, policy, policyMap := checkMTASTSPolicyFile(domain, hostnameResults)
+	result.addCheck(checkMTASTSRecord(domain, c.timeout()))
+	policyResult, policy, policyMap := checkMTASTSPolicyFile(domain, hostnameResults, c.timeout())
 	result.addCheck(policyResult)
 	result.Policy = policy
 	result.Mode = policyMap["mode"]
