@@ -128,8 +128,8 @@ func checkMTASTSPolicyFile(domain string, hostnameResults map[string]HostnameRes
 		}
 	}
 	defer resp.Body.Close()
-	// Read up to 10,000 bytes of response body.
-	body, err := ioutil.ReadAll(io.LimitReader(resp.Body, 10000))
+	// Read up to 64,000 bytes of response body.
+	body, err := ioutil.ReadAll(io.LimitReader(resp.Body, 64000))
 	if err != nil {
 		return result.Error("Couldn't read policy file: %v.", err), "", map[string]string{}
 	}
