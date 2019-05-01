@@ -78,7 +78,7 @@ func getKeyValuePairs(record string, lineDelimiter string,
 
 func checkMTASTSRecord(domain string, timeout time.Duration) *Result {
 	result := MakeResult(MTASTSText)
-	ctx, cancel := context.WithTimeout(context.TODO(), timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	var r net.Resolver
 	records, err := r.LookupTXT(ctx, fmt.Sprintf("_mta-sts.%s", domain))
