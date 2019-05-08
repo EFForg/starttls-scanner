@@ -3,6 +3,7 @@ package stats
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/EFForg/starttls-backend/checker"
 	raven "github.com/getsentry/raven-go"
@@ -37,5 +38,13 @@ func Import(store Store) {
 		if err != nil {
 			raven.CaptureError(err, nil)
 		}
+	}
+}
+
+// ImportRegularly runs Import to import aggregated stats from a remote server at regular intervals.
+func ImportRegularly(store Store, interval time.Duration) {
+	for {
+		<-time.After(interval)
+		Import(store)
 	}
 }
