@@ -22,6 +22,10 @@ type policyStore interface {
 	PutOrUpdatePolicy(*PolicySubmission) error
 }
 
+type policyList interface {
+	HasDomain(string) bool
+}
+
 // In some cases, you should be able to replace the existing policy with
 // a new one. In some cases, you shouldn't.
 // For instance, if the only difference between the policies is the email
@@ -82,4 +86,28 @@ func (d *PolicySubmission) InitializeWithToken(pendingPolicies policyStore, toke
 		return "", err
 	}
 	return token.Token, nil
+}
+
+// AsyncPolicyListCheck performs PolicyListCheck asynchronously.
+// domainStore and policyList should be safe for concurrent use.
+func (d PolicySubmission) AsyncPolicyListCheck(policies policyStore, pendingPolicies policyStore, list policyList) <-chan checker.Result {
+	result := make(chan checker.Result)
+	go func() { result <- *d.PolicyListCheck(policies, pendingPolicies, list) }()
+	return result
+}
+
+func (d *PolicySubmission) PolicyListCheck(policies policyStore, pendingPolicies policyStore, list policyList) *checker.Result {
+	result := checker.Result{Name: checker.PolicyList}
+	if list.HasDomain(d.Domain) {
+		return result.Success()
+	}
+	_, err := policies.GetPolicy(d.Domain)
+	if err == nil {
+		return result.Warning("Domain %s is queued to be added to the policy list.", d.Domain)
+	}
+	_, err = pendingPolicies.GetPolicy(d.Domain)
+	if err == nil {
+		return result.Failure("The policy addition request for %s is waiting on email validation", d.Domain)
+	}
+	return result.Failure("Domain %s is not on the policy list.", d.Domain)
 }

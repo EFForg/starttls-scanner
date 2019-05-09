@@ -90,7 +90,8 @@ func (api *API) wrapper(handler apiHandler) func(w http.ResponseWriter, r *http.
 }
 
 func defaultCheck(api API, domain string) (checker.DomainResult, error) {
-	policyChan := models.Domain{Name: domain}.AsyncPolicyListCheck(api.Database, api.List)
+	policyChan := models.PolicySubmission{Domain: domain}.AsyncPolicyListCheck(
+		api.Database.Policies, api.Database.PendingPolicies, api.List)
 	c := checker.Checker{
 		Cache: &checker.ScanCache{
 			ScanStore:  api.Database,
