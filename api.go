@@ -266,7 +266,7 @@ func (api API) Validate(r *http.Request) APIResponse {
 			Message: "/api/validate only accepts POST requests"}
 	}
 	tokenData := models.Token{Token: token}
-	domain, userErr, dbErr := tokenData.Redeem(api.Database, api.Database)
+	domain, userErr, dbErr := tokenData.Redeem(api.Database.PendingPolicies, api.Database.Policies, api.Database)
 	if userErr != nil {
 		return badRequest(userErr.Error())
 	}
