@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -42,7 +43,7 @@ func TestImportAggregatedScans(t *testing.T) {
 			json.NewEncoder(w).Encode(agScans)
 		}),
 	)
-	statsURL = ts.URL
+	os.Setenv("REMOTE_STATS_URL", ts.URL)
 	store := mockAgScanStore{}
 	Import(&store)
 	for i, want := range agScans {

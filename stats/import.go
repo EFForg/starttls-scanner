@@ -3,13 +3,12 @@ package stats
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/EFForg/starttls-backend/checker"
 	raven "github.com/getsentry/raven-go"
 )
-
-var statsURL = "https://stats.starttls-everywhere.org/mta-sts-adoption.csv"
 
 // Store wraps storage for MTA-STS adoption statistics.
 type Store interface {
@@ -19,6 +18,7 @@ type Store interface {
 // Import imports JSON list of aggregated scans from a remote server to the
 // datastore.
 func Import(store Store) {
+	statsURL := os.Getenv("REMOTE_STATS_URL")
 	resp, err := http.Get(statsURL)
 	if err != nil {
 		raven.CaptureError(err, nil)
