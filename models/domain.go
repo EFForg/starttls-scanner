@@ -100,16 +100,16 @@ func (d *Domain) PopulateFromScan(scan Scan) {
 
 // InitializeWithToken adds this domain to the given DomainStore and initializes a validation token
 // for the addition. The newly generated Token is returned.
-func (d *Domain) InitializeWithToken(store domainStore, tokens tokenStore) (string, error) {
-	if err := store.PutDomain(*d); err != nil {
-		return "", err
-	}
-	token, err := tokens.PutToken(d.Name)
-	if err != nil {
-		return "", err
-	}
-	return token.Token, nil
-}
+// func (d *Domain) InitializeWithToken(store domainStore, tokens tokenStore) (string, error) {
+// 	if err := store.PutDomain(*d); err != nil {
+// 		return "", err
+// 	}
+// 	token, err := tokens.PutToken(d.Name)
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	return token.Token, nil
+// }
 
 // PolicyListCheck checks the policy list status of this particular domain.
 func (d *Domain) PolicyListCheck(store domainStore, list policyList) *checker.Result {

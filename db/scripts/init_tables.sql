@@ -40,6 +40,24 @@ CREATE TABLE IF NOT EXISTS domains
     PRIMARY KEY (domain, status)
 );
 
+CREATE TABLE IF NOT EXISTS policies
+(
+    domain        TEXT NOT NULL PRIMARY KEY,
+    email         TEXT NOT NULL,
+    mta_sts       BOOLEAN DEFAULT FALSE,
+    mxs           TEXT NOT NULL,
+    mode          VARCHAR(255) NOT NULL,
+);
+
+CREATE TABLE IF NOT EXISTS pending_policies
+(
+    domain        TEXT NOT NULL PRIMARY KEY,
+    email         TEXT NOT NULL,
+    mta_sts       BOOLEAN DEFAULT FALSE,
+    mxs           TEXT,
+    mode          VARCHAR(255),
+);
+
 CREATE TABLE IF NOT EXISTS blacklisted_emails
 (
     id          SERIAL PRIMARY KEY,

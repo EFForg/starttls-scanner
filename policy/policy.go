@@ -20,6 +20,23 @@ type TLSPolicy struct {
 	MXs         []string `json:"mxs,omitempty"`
 }
 
+// Assumption: Every string is unique in the MXs list.
+func (p *TLSPolicy) HostnamesEqual(other *TLSPolicy) bool {
+	if len(p.MXs) != len(other.MXs) {
+		return false
+	}
+	set := make(map[string]bool)
+	for _, mx := range p.MXs {
+		set[mx] = true
+	}
+	for _, mx := range other.MXs {
+		if !set[mx] {
+			return false
+		}
+	}
+	return true
+}
+
 // List is a raw representation of the policy list.
 type List struct {
 	Timestamp     time.Time            `json:"timestamp"`

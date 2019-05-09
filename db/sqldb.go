@@ -22,8 +22,10 @@ const sqlTimeFormat = "2006-01-02 15:04:05"
 
 // SQLDatabase is a Database interface backed by postgresql.
 type SQLDatabase struct {
-	cfg  Config  // Configuration to define the DB connection.
-	conn *sql.DB // The database connection.
+	cfg             Config  // Configuration to define the DB connection.
+	conn            *sql.DB // The database connection.
+	PendingPolicies *PolicyDB
+	Policies        *PolicyDB
 }
 
 func getConnectionString(cfg Config) string {
@@ -45,7 +47,10 @@ func InitSQLDatabase(cfg Config) (*SQLDatabase, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &SQLDatabase{cfg: cfg, conn: conn}, nil
+	return &SQLDatabase{cfg: cfg, conn: conn,
+		PendingPolicies: &PolicyDB{tableName: "pending_policies", conn: conn, strict: false},
+		Policies:        &PolicyDB{tableName: "policies", conn: conn, strict: true},
+	}, nil
 }
 
 // TOKEN DB FUNCTIONS
