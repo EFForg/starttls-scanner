@@ -37,11 +37,11 @@ func TestUpdateStats(t *testing.T) {
 		Attempted: 3,
 	})
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	timeJSON, err := json.Marshal(time.Time{})
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	re := regexp.MustCompile(
 		strings.Replace(string(expected), string(timeJSON), ".*", 1),
