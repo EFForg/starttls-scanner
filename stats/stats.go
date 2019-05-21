@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/EFForg/starttls-backend/checker"
@@ -67,6 +68,22 @@ func ImportRegularly(store Store, interval time.Duration) {
 // library prefers.
 type Series map[time.Time]float64
 
+// MarshalJSON marshals a Series to the format expected by chart.js.
+func (s Series) MarshalJSON() ([]byte, error) {
+	type xyPt struct {
+		X time.Time `json:"x"`
+		Y float64   `json:"y"`
+	}
+	xySeries := make([]xyPt, 0)
+	for x, y := range s {
+		xySeries = append(xySeries, xyPt{X: x, Y: y})
+	}
+	sort.Slice(xySeries, func(i, j int) bool {
+		return xySeries[i].X.After(xySeries[j].X)
+	})
+	return json.Marshal(xySeries)
+}
+
 // Get retrieves MTA-STS adoption statistics for user-initiated scans and scans
 // of the top million domains over time.
 func Get(store Store) (map[string]Series, error) {
@@ -75,7 +92,7 @@ func Get(store Store) (map[string]Series, error) {
 	if err != nil {
 		return result, err
 	}
-	result["top-million"] = series
+	result["top_million"] = series
 	series, err = store.GetMTASTSLocalStats()
 	if err != nil {
 		return result, err
