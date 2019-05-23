@@ -56,10 +56,12 @@ func Import(store Store) error {
 // ImportRegularly runs Import to import aggregated stats from a remote server at regular intervals.
 func ImportRegularly(store Store, interval time.Duration) {
 	for {
-		<-time.After(interval)
 		err := Import(store)
-		log.Println(err)
-		raven.CaptureError(err, nil)
+		if err != nil {
+			log.Println(err)
+			raven.CaptureError(err, nil)
+		}
+		<-time.After(interval)
 	}
 }
 
