@@ -137,6 +137,30 @@ func (db *SQLDatabase) GetMTASTSStats(source string) (stats.Series, error) {
 	return series, nil
 }
 
+func (db *SQLDatabase) PutLocalStats(date time.Time) (float64, error) {
+	query := `
+		SELECT COALESCE ( SUM (
+			CASE WHEN mta_sts_mode = 'testing' THEN 1 ELSE 0 END +
+			CASE WHEN mta_sts_mode = 'enforce' THEN 1 ELSE 0 END
+		), 0 ) AS enabled, COUNT(domain) AS total
+		FROM (
+			SELECT DISTINCT ON (domain) domain, timestamp, mta_sts_mode
+			FROM scans
+			WHERE timestamp BETWEEN $1 AND $2
+			ORDER BY domain, timestamp DESC
+		) AS latest_domains;
+	`
+	start := date.Add(-14 * 24 * time.Hour)
+	end := date
+	var enabled int
+	var total int
+	err := db.conn.QueryRow(query, start, end).Scan(&enabled, &total)
+	if total == 0 {
+		return 0, err
+	}
+	return 100 * float64(enabled) / float64(total), err
+}
+
 // GetMTASTSLocalStats returns statistics about MTA-STS adoption in
 // user-initiated scans over a rolling 14-day window.  Returns a map with:
 //  key: the final day of a two-week window. Windows last until EOD.
