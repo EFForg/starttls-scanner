@@ -10,7 +10,6 @@ import (
 	"github.com/EFForg/starttls-backend/checker"
 	"github.com/EFForg/starttls-backend/db"
 	"github.com/EFForg/starttls-backend/models"
-	"github.com/EFForg/starttls-backend/stats"
 	"github.com/joho/godotenv"
 )
 
@@ -386,7 +385,7 @@ func TestGetMTASTSStats(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result[may1] != 3 || result[may2] != 4 {
+	if result[may1].TotalMTASTS() != 3 || result[may2].TotalMTASTS() != 4 {
 		t.Errorf("Incorrect MTA-STS stats, got %v", result)
 	}
 }
@@ -420,7 +419,7 @@ func TestPutLocalStats(t *testing.T) {
 	}
 }
 
-func TestGetMTASTSLocalStats(t *testing.T) {
+func TestGetLocalStats(t *testing.T) {
 	database.ClearTables()
 	day := time.Hour * 24
 	today := time.Now()
@@ -437,17 +436,6 @@ func TestGetMTASTSLocalStats(t *testing.T) {
 	s.Timestamp = lastWeek.Add(3 * day)
 	s.Data.MTASTSResult.Mode = ""
 	database.PutScan(s)
-	// Support is shown in the rolling average until the no-support scan is
-	// included.
-	expectStats(stats.Series{
-		lastWeek:              100,
-		lastWeek.Add(day):     100,
-		lastWeek.Add(2 * day): 100,
-		lastWeek.Add(3 * day): 0,
-		lastWeek.Add(4 * day): 0,
-		lastWeek.Add(5 * day): 0,
-		lastWeek.Add(6 * day): 0,
-	}, t)
 
 	// Add another recent scan, from a second domain.
 	s = models.Scan{
@@ -456,15 +444,6 @@ func TestGetMTASTSLocalStats(t *testing.T) {
 		Timestamp: lastWeek.Add(1 * day),
 	}
 	database.PutScan(s)
-	expectStats(stats.Series{
-		lastWeek:              100,
-		lastWeek.Add(day):     100,
-		lastWeek.Add(2 * day): 100,
-		lastWeek.Add(3 * day): 50,
-		lastWeek.Add(4 * day): 50,
-		lastWeek.Add(5 * day): 50,
-		lastWeek.Add(6 * day): 50,
-	}, t)
 
 	// Add a third scan to check that floats are outputted correctly.
 	s = models.Scan{
@@ -473,7 +452,22 @@ func TestGetMTASTSLocalStats(t *testing.T) {
 		Timestamp: lastWeek.Add(6 * day),
 	}
 	database.PutScan(s)
-	expectStats(stats.Series{
+
+	// Write stats to the database for all the windows we want to check.
+	for i := 0; i < 7; i++ {
+		database.PutLocalStats(lastWeek.Add(day * time.Duration(i)))
+	}
+
+	// expectStats(stats.Series{
+	// 	lastWeek:              100,
+	// 	lastWeek.Add(day):     100,
+	// 	lastWeek.Add(2 * day): 100,
+	// 	lastWeek.Add(3 * day): 50,
+	// 	lastWeek.Add(4 * day): 50,
+	// 	lastWeek.Add(5 * day): 50,
+	// 	lastWeek.Add(6 * day): 66.66666666666667,
+	// }, t)
+	expectedPcts := map[time.Time]float64{
 		lastWeek:              100,
 		lastWeek.Add(day):     100,
 		lastWeek.Add(2 * day): 100,
@@ -481,35 +475,49 @@ func TestGetMTASTSLocalStats(t *testing.T) {
 		lastWeek.Add(4 * day): 50,
 		lastWeek.Add(5 * day): 50,
 		lastWeek.Add(6 * day): 66.66666666666667,
-	}, t)
-}
-
-func expectStats(ts stats.Series, t *testing.T) {
-	// GetMTASTSStats returns dates only (no hours, minutes, seconds). We need
-	// to truncate the expected times for comparison to dates and convert to UTC
-	// to match the database's timezone.
-	expected := make(map[time.Time]float64)
-	for kOld, v := range ts {
-		k := kOld.UTC().Truncate(24 * time.Hour)
-		expected[k] = v
 	}
-	got, err := database.GetMTASTSLocalStats()
+	got, err := database.GetMTASTSStats("local")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(expected) != len(got) {
-		t.Errorf("Expected MTA-STS stats to be\n %v\ngot\n %v\n", expected, got)
+	if len(expectedPcts) != len(got) {
+		t.Errorf("Expected MTA-STS stats to be\n %v\ngot\n %v\n", expectedPcts, got)
 		return
 	}
-	for expKey, expVal := range expected {
-		// DB query returns dates only (no hours, minutes, seconds).
-		key := expKey.Truncate(24 * time.Hour)
-		if got[key] != expVal {
-			t.Errorf("Expected MTA-STS stats to be\n %v\ngot\n %v\n", expected, got)
-			return
+	for expT, expPct := range expectedPcts {
+		if got[expT.UTC()].PercentMTASTS() != expPct {
+			t.Errorf("\nTime: %v\nExpected %v\nGot %v\n", expT.UTC(), expPct, got[expT].PercentMTASTS())
 		}
 	}
+	t.Fatal(got)
 }
+
+// func expectStats(ts stats.Series, t *testing.T) {
+// 	// GetMTASTSStats returns dates only (no hours, minutes, seconds). We need
+// 	// to truncate the expected times for comparison to dates and convert to UTC
+// 	// to match the database's timezone.
+// 	expected := make(map[time.Time]float64)
+// 	for kOld, v := range ts {
+// 		k := kOld.UTC().Truncate(24 * time.Hour)
+// 		expected[k] = v
+// 	}
+// 	got, err := database.GetMTASTSStats("local")
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	if len(expected) != len(got) {
+// 		t.Errorf("Expected MTA-STS stats to be\n %v\ngot\n %v\n", expected, got)
+// 		return
+// 	}
+// 	for expKey, expVal := range expected {
+// 		// DB query returns dates only (no hours, minutes, seconds).
+// 		key := expKey.Truncate(24 * time.Hour)
+// 		if got[key].PercentMTASTS() != expVal {
+// 			t.Errorf("Expected MTA-STS stats to be\n %v\ngot\n %v\n", expected, got)
+// 			return
+// 		}
+// 	}
+// }
 
 func TestGetMTASTSDomains(t *testing.T) {
 	database.ClearTables()
