@@ -393,12 +393,13 @@ func TestGetMTASTSStats(t *testing.T) {
 
 func TestPutLocalStats(t *testing.T) {
 	database.ClearTables()
-	percent, err := database.PutLocalStats(time.Now())
+	a, err := database.PutLocalStats(time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if percent != 0 {
-		t.Error()
+	if a.PercentMTASTS() != 0 {
+		t.Errorf("Expected PercentMTASTS with no recent scans to be 0, got %v",
+			a.PercentMTASTS())
 	}
 	day := time.Hour * 24
 	today := time.Now()
@@ -409,12 +410,13 @@ func TestPutLocalStats(t *testing.T) {
 		Timestamp: lastWeek,
 	}
 	database.PutScan(s)
-	percent, err = database.PutLocalStats(time.Now())
+	a, err = database.PutLocalStats(time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if percent != 100 {
-		t.Error(percent)
+	if a.PercentMTASTS() != 100 {
+		t.Errorf("Expected PercentMTASTS with one recent scan to be 100, got %v",
+			a.PercentMTASTS())
 	}
 }
 

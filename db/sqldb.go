@@ -137,12 +137,18 @@ func (db *SQLDatabase) GetMTASTSStats(source string) (stats.Series, error) {
 	return series, nil
 }
 
-func (db *SQLDatabase) PutLocalStats(date time.Time) (float64, error) {
+// PutLocalStats writes aggregated stats for the 14 days preceding `date` to
+// the aggregated_stats table.
+func (db *SQLDatabase) PutLocalStats(date time.Time) (checker.AggregatedScan, error) {
 	query := `
-		SELECT COALESCE ( SUM (
-			CASE WHEN mta_sts_mode = 'testing' THEN 1 ELSE 0 END +
-			CASE WHEN mta_sts_mode = 'enforce' THEN 1 ELSE 0 END
-		), 0 ) AS enabled, COUNT(domain) AS total
+		SELECT
+			COUNT(domain) AS total,
+			COALESCE ( SUM (
+				CASE WHEN mta_sts_mode = 'testing' THEN 1 ELSE 0 END
+			), 0 ) AS testing,
+			COALESCE ( SUM (
+				CASE WHEN mta_sts_mode = 'enforce' THEN 1 ELSE 0 END
+			), 0 ) AS enforce
 		FROM (
 			SELECT DISTINCT ON (domain) domain, timestamp, mta_sts_mode
 			FROM scans
@@ -152,13 +158,13 @@ func (db *SQLDatabase) PutLocalStats(date time.Time) (float64, error) {
 	`
 	start := date.Add(-14 * 24 * time.Hour)
 	end := date
-	var enabled int
-	var total int
-	err := db.conn.QueryRow(query, start, end).Scan(&enabled, &total)
-	if total == 0 {
-		return 0, err
+	var a checker.AggregatedScan
+	err := db.conn.QueryRow(query, start, end).Scan(&a.WithMXs, &a.MTASTSTesting, &a.MTASTSEnforce)
+	if err != nil {
+		return a, err
 	}
-	return 100 * float64(enabled) / float64(total), err
+	err = db.PutAggregatedScan(a)
+	return a, err
 }
 
 // GetMTASTSLocalStats returns statistics about MTA-STS adoption in
