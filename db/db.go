@@ -36,8 +36,6 @@ type Database interface {
 	PutAggregatedScan(checker.AggregatedScan) error
 	// Gets counts per day of hosts supporting MTA-STS for a given source.
 	GetMTASTSStats(string) (stats.Series, error)
-	// Gets counts per day of hosts scanned by this app supporting MTA-STS adoption.
-	GetMTASTSLocalStats() (stats.Series, error)
 	// Upserts domain state.
 	PutDomain(models.Domain) error
 	// Retrieves state of a domain

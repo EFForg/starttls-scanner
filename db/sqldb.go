@@ -120,19 +120,22 @@ func (db *SQLDatabase) PutScan(scan models.Scan) error {
 // GetMTASTSStats returns statistics about a MTA-STS adoption from a single
 // source domains to check.
 func (db *SQLDatabase) GetMTASTSStats(source string) (stats.Series, error) {
+	series := stats.Series{}
 	rows, err := db.conn.Query(
-		"SELECT time, with_mxs, mta_sts_testing, mta_sts_enforce FROM aggregated_scans WHERE source=$1", source)
+		`SELECT time, with_mxs, mta_sts_testing, mta_sts_enforce
+		FROM aggregated_scans
+		WHERE source=$1
+		ORDER BY time`, source)
 	if err != nil {
-		return stats.Series{}, err
+		return series, err
 	}
 	defer rows.Close()
-	series := stats.Series{}
 	for rows.Next() {
 		var a checker.AggregatedScan
 		if err := rows.Scan(&a.Time, &a.WithMXs, &a.MTASTSTesting, &a.MTASTSEnforce); err != nil {
-			return stats.Series{}, err
+			return series, err
 		}
-		series[a.Time.UTC()] = a
+		series = append(series, a)
 	}
 	return series, nil
 }
