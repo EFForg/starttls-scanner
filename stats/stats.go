@@ -68,7 +68,7 @@ func ImportRegularly(store Store, interval time.Duration) {
 // Series represents some statistic as it changes over time.
 // This will likely be updated when we know what format our frontend charting
 // library prefers.
-type Series map[time.Time]float64
+type Series map[time.Time]checker.AggregatedScan
 
 // MarshalJSON marshals a Series to the format expected by chart.js.
 func (s Series) MarshalJSON() ([]byte, error) {
@@ -77,8 +77,16 @@ func (s Series) MarshalJSON() ([]byte, error) {
 		Y float64   `json:"y"`
 	}
 	xySeries := make([]xyPt, 0)
-	for x, y := range s {
-		xySeries = append(xySeries, xyPt{X: x, Y: y})
+	for t, a := range s {
+		var y float64
+		if a.Source != topDomainsSource {
+			y = a.PercentMTASTS()
+		} else {
+			// Top million scans have too few MTA-STS domains to use a percent,
+			// display a raw total instead.
+			y = float64(a.TotalMTASTS())
+		}
+		xySeries = append(xySeries, xyPt{X: t, Y: y})
 	}
 	sort.Slice(xySeries, func(i, j int) bool {
 		return xySeries[i].X.After(xySeries[j].X)
@@ -95,7 +103,7 @@ func Get(store Store) (map[string]Series, error) {
 		return result, err
 	}
 	result["top_million"] = series
-	series, err = store.GetMTASTSLocalStats()
+	series, err = store.GetMTASTSStats("local")
 	if err != nil {
 		return result, err
 	}
