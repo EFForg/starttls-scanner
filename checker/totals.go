@@ -30,7 +30,10 @@ func (a AggregatedScan) TotalMTASTS() int {
 // PercentMTASTS returns the fraction of domains with MXs that support
 // MTA-STS, represented as a float between 0 and 1.
 func (a AggregatedScan) PercentMTASTS() float64 {
-	return float64(a.TotalMTASTS()) / float64(a.WithMXs)
+	if a.WithMXs == 0 {
+		return 0
+	}
+	return 100 * float64(a.TotalMTASTS()) / float64(a.WithMXs)
 }
 
 // HandleDomain adds the result of a single domain scan to aggregated stats.
