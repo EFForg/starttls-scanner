@@ -391,6 +391,33 @@ func TestGetMTASTSStats(t *testing.T) {
 	}
 }
 
+func TestPutLocalStats(t *testing.T) {
+	database.ClearTables()
+	percent, err := database.PutLocalStats(time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if percent != 0 {
+		t.Error()
+	}
+	day := time.Hour * 24
+	today := time.Now()
+	lastWeek := today.Add(-6 * day)
+	s := models.Scan{
+		Domain:    "example1.com",
+		Data:      checker.NewSampleDomainResult("example1.com"),
+		Timestamp: lastWeek,
+	}
+	database.PutScan(s)
+	percent, err = database.PutLocalStats(time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if percent != 100 {
+		t.Error(percent)
+	}
+}
+
 func TestGetMTASTSLocalStats(t *testing.T) {
 	database.ClearTables()
 	day := time.Hour * 24
