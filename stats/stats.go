@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"sort"
 	"time"
 
 	"github.com/EFForg/starttls-backend/checker"
@@ -17,7 +16,6 @@ import (
 type Store interface {
 	PutAggregatedScan(checker.AggregatedScan) error
 	GetMTASTSStats(string) (Series, error)
-	GetMTASTSLocalStats() (Series, error)
 }
 
 // Identifier in the DB for aggregated scans we imported from our regular scans
@@ -68,7 +66,7 @@ func ImportRegularly(store Store, interval time.Duration) {
 // Series represents some statistic as it changes over time.
 // This will likely be updated when we know what format our frontend charting
 // library prefers.
-type Series map[time.Time]checker.AggregatedScan
+type Series []checker.AggregatedScan
 
 // MarshalJSON marshals a Series to the format expected by chart.js.
 // See https://www.chartjs.org/docs/latest/
@@ -78,7 +76,7 @@ func (s Series) MarshalJSON() ([]byte, error) {
 		Y float64   `json:"y"`
 	}
 	xySeries := make([]xyPt, 0)
-	for t, a := range s {
+	for _, a := range s {
 		var y float64
 		if a.Source != topDomainsSource {
 			y = a.PercentMTASTS()
@@ -87,11 +85,8 @@ func (s Series) MarshalJSON() ([]byte, error) {
 			// display a raw total instead.
 			y = float64(a.TotalMTASTS())
 		}
-		xySeries = append(xySeries, xyPt{X: t, Y: y})
+		xySeries = append(xySeries, xyPt{X: a.Time, Y: y})
 	}
-	sort.Slice(xySeries, func(i, j int) bool {
-		return xySeries[i].X.After(xySeries[j].X)
-	})
 	return json.Marshal(xySeries)
 }
 

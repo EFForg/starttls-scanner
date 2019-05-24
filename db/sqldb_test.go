@@ -385,7 +385,8 @@ func TestGetMTASTSStats(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result[may1].TotalMTASTS() != 3 || result[may2].TotalMTASTS() != 4 {
+	// @TODO this can be better now that the map is gone
+	if result[0].TotalMTASTS() != 3 || result[1].TotalMTASTS() != 4 {
 		t.Errorf("Incorrect MTA-STS stats, got %v", result)
 	}
 }
@@ -449,7 +450,7 @@ func TestGetLocalStats(t *testing.T) {
 	s = models.Scan{
 		Domain:    "example3.com",
 		Data:      checker.NewSampleDomainResult("example2.com"),
-		Timestamp: lastWeek.Add(6 * day),
+		Timestamp: lastWeek.Add(5 * day),
 	}
 	database.PutScan(s)
 
@@ -458,66 +459,22 @@ func TestGetLocalStats(t *testing.T) {
 		database.PutLocalStats(lastWeek.Add(day * time.Duration(i)))
 	}
 
-	// expectStats(stats.Series{
-	// 	lastWeek:              100,
-	// 	lastWeek.Add(day):     100,
-	// 	lastWeek.Add(2 * day): 100,
-	// 	lastWeek.Add(3 * day): 50,
-	// 	lastWeek.Add(4 * day): 50,
-	// 	lastWeek.Add(5 * day): 50,
-	// 	lastWeek.Add(6 * day): 66.66666666666667,
-	// }, t)
-	expectedPcts := map[time.Time]float64{
-		lastWeek:              100,
-		lastWeek.Add(day):     100,
-		lastWeek.Add(2 * day): 100,
-		lastWeek.Add(3 * day): 50,
-		lastWeek.Add(4 * day): 50,
-		lastWeek.Add(5 * day): 50,
-		lastWeek.Add(6 * day): 66.66666666666667,
-	}
-	got, err := database.GetMTASTSStats("local")
+	stats, err := database.GetMTASTSStats("local")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(expectedPcts) != len(got) {
-		t.Errorf("Expected MTA-STS stats to be\n %v\ngot\n %v\n", expectedPcts, got)
-		return
+
+	// Validate result
+	expPcts := []float64{0, 100, 100, 100, 50, 50, 100 * 2 / float64(3)}
+	if len(expPcts) != 7 {
+		t.Errorf("Expected 7 stats, got\n %v\n", stats)
 	}
-	for expT, expPct := range expectedPcts {
-		if got[expT.UTC()].PercentMTASTS() != expPct {
-			t.Errorf("\nTime: %v\nExpected %v\nGot %v\n", expT.UTC(), expPct, got[expT].PercentMTASTS())
+	for i, got := range stats {
+		if got.PercentMTASTS() != expPcts[i] {
+			t.Errorf("\nExpected %v%%\nGot %v\n (%v%%)", expPcts[i], got, got.PercentMTASTS())
 		}
 	}
-	t.Fatal(got)
 }
-
-// func expectStats(ts stats.Series, t *testing.T) {
-// 	// GetMTASTSStats returns dates only (no hours, minutes, seconds). We need
-// 	// to truncate the expected times for comparison to dates and convert to UTC
-// 	// to match the database's timezone.
-// 	expected := make(map[time.Time]float64)
-// 	for kOld, v := range ts {
-// 		k := kOld.UTC().Truncate(24 * time.Hour)
-// 		expected[k] = v
-// 	}
-// 	got, err := database.GetMTASTSStats("local")
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// 	if len(expected) != len(got) {
-// 		t.Errorf("Expected MTA-STS stats to be\n %v\ngot\n %v\n", expected, got)
-// 		return
-// 	}
-// 	for expKey, expVal := range expected {
-// 		// DB query returns dates only (no hours, minutes, seconds).
-// 		key := expKey.Truncate(24 * time.Hour)
-// 		if got[key].PercentMTASTS() != expVal {
-// 			t.Errorf("Expected MTA-STS stats to be\n %v\ngot\n %v\n", expected, got)
-// 			return
-// 		}
-// 	}
-// }
 
 func TestGetMTASTSDomains(t *testing.T) {
 	database.ClearTables()
