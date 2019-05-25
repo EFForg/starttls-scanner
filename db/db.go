@@ -3,6 +3,7 @@ package db
 import (
 	"flag"
 	"os"
+	"time"
 
 	"github.com/EFForg/starttls-backend/checker"
 	"github.com/EFForg/starttls-backend/models"
@@ -34,6 +35,8 @@ type Database interface {
 	PutHostnameScan(string, checker.HostnameResult) error
 	// Writes an aggregated scan to the database
 	PutAggregatedScan(checker.AggregatedScan) error
+	// Caches stats for the 14 days preceding time.Time
+	PutLocalStats(time.Time) (checker.AggregatedScan, error)
 	// Gets counts per day of hosts supporting MTA-STS for a given source.
 	GetMTASTSStats(string) (stats.Series, error)
 	// Upserts domain state.

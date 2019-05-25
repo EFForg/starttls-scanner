@@ -18,11 +18,16 @@ func (m *mockAgScanStore) PutAggregatedScan(agScan checker.AggregatedScan) error
 	return nil
 }
 
-func (m *mockAgScanStore) GetMTASTSStats(source string) (Series, error) {
-	return Series{}, nil
+func (m *mockAgScanStore) PutLocalStats(date time.Time) (checker.AggregatedScan, error) {
+	a := checker.AggregatedScan{
+		Source: "local",
+		Time:   date,
+	}
+	*m = append(*m, a)
+	return a, nil
 }
 
-func (m *mockAgScanStore) GetMTASTSLocalStats() (Series, error) {
+func (m *mockAgScanStore) GetMTASTSStats(source string) (Series, error) {
 	return Series{}, nil
 }
 
@@ -50,6 +55,7 @@ func TestImport(t *testing.T) {
 			enc.Encode(agScans[1])
 		}),
 	)
+	defer ts.Close()
 	os.Setenv("REMOTE_STATS_URL", ts.URL)
 	store := mockAgScanStore{}
 	err := Import(&store)
@@ -68,5 +74,15 @@ func TestImport(t *testing.T) {
 		if got.Source != topDomainsSource {
 			t.Errorf("Expected source for imported domains to be %s", topDomainsSource)
 		}
+	}
+}
+
+func TestUpdate(t *testing.T) {
+	store := mockAgScanStore{}
+	Update(&store)
+	a := store[0]
+	// Confirm that date is trucated correctly
+	if a.Time.Hour() != 0 || a.Time.Minute() != 0 {
+		t.Errorf("Expected date to be truncated, got %v", a.Time)
 	}
 }
