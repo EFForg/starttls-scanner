@@ -293,7 +293,7 @@ func TestHostnamesForDomain(t *testing.T) {
 }
 
 func TestPutAndIsBlacklistedEmail(t *testing.T) {
-	defer database.ClearTables()
+	database.ClearTables()
 
 	// Add an e-mail address to the blacklist.
 	err := database.PutBlacklistedEmail("fail@example.com", "bounce", "2017-07-21T18:47:13.498Z")
