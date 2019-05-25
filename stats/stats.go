@@ -15,6 +15,7 @@ import (
 // Store wraps storage for MTA-STS adoption statistics.
 type Store interface {
 	PutAggregatedScan(checker.AggregatedScan) error
+	PutLocalStats(time.Time) (checker.AggregatedScan, error)
 	GetMTASTSStats(string) (Series, error)
 }
 
@@ -22,7 +23,7 @@ type Store interface {
 // of the web's top domains
 const topDomainsSource = "TOP_DOMAINS"
 
-// Import imports aggregated scans from a remote server to the datastore.
+// Update imports aggregated scans from a remote server to the datastore.
 // Expected format is JSONL (newline-separated JSON objects).
 func Import(store Store) error {
 	statsURL := os.Getenv("REMOTE_STATS_URL")
@@ -51,14 +52,27 @@ func Import(store Store) error {
 	return nil
 }
 
-// ImportRegularly runs Import to import aggregated stats from a remote server at regular intervals.
-func ImportRegularly(store Store, interval time.Duration) {
+// Update imports aggregated scans and update our cache table of local scans.
+// Log any errors.
+func Update(store Store) {
+	err := Import(store)
+	if err != nil {
+		log.Println(err)
+		raven.CaptureError(err, nil)
+	}
+	// Cache stats for the previous day at midnight. This ensures that we capture
+	// full days and maintain regularly intervals.
+	_, err = store.PutLocalStats(time.Now().UTC().Truncate(24 * time.Hour))
+	if err != nil {
+		log.Println(err)
+		raven.CaptureError(err, nil)
+	}
+}
+
+// UpdateRegularly runs Import to import aggregated stats from a remote server at regular intervals.
+func UpdateRegularly(store Store, interval time.Duration) {
 	for {
-		err := Import(store)
-		if err != nil {
-			log.Println(err)
-			raven.CaptureError(err, nil)
-		}
+		Update(store)
 		<-time.After(interval)
 	}
 }
