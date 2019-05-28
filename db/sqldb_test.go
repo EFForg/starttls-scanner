@@ -431,7 +431,7 @@ func TestGetLocalStats(t *testing.T) {
 	s := models.Scan{
 		Domain:    "example1.com",
 		Data:      checker.NewSampleDomainResult("example1.com"),
-		Timestamp: lastWeek,
+		Timestamp: lastWeek.Add(1 * day),
 	}
 	database.PutScan(s)
 	s.Timestamp = lastWeek.Add(3 * day)
@@ -442,7 +442,7 @@ func TestGetLocalStats(t *testing.T) {
 	s = models.Scan{
 		Domain:    "example2.com",
 		Data:      checker.NewSampleDomainResult("example2.com"),
-		Timestamp: lastWeek.Add(1 * day),
+		Timestamp: lastWeek.Add(2 * day),
 	}
 	database.PutScan(s)
 
@@ -450,7 +450,7 @@ func TestGetLocalStats(t *testing.T) {
 	s = models.Scan{
 		Domain:    "example3.com",
 		Data:      checker.NewSampleDomainResult("example2.com"),
-		Timestamp: lastWeek.Add(5 * day),
+		Timestamp: lastWeek.Add(6 * day),
 	}
 	database.PutScan(s)
 
@@ -465,7 +465,7 @@ func TestGetLocalStats(t *testing.T) {
 	}
 
 	// Validate result
-	expPcts := []float64{0, 100, 100, 100, 50, 50, 100 * 2 / float64(3)}
+	expPcts := []float64{0, 100, 100, 50, 50, 50, 100 * 2 / float64(3)}
 	if len(expPcts) != 7 {
 		t.Errorf("Expected 7 stats, got\n %v\n", stats)
 	}
