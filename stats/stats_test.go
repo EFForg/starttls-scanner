@@ -27,7 +27,7 @@ func (m *mockAgScanStore) PutLocalStats(date time.Time) (checker.AggregatedScan,
 	return a, nil
 }
 
-func (m *mockAgScanStore) GetMTASTSStats(source string) (Series, error) {
+func (m *mockAgScanStore) GetStats(source string) (Series, error) {
 	return Series{}, nil
 }
 

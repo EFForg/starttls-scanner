@@ -16,14 +16,14 @@ import (
 type Store interface {
 	PutAggregatedScan(checker.AggregatedScan) error
 	PutLocalStats(time.Time) (checker.AggregatedScan, error)
-	GetMTASTSStats(string) (Series, error)
+	GetStats(string) (Series, error)
 }
 
 // Identifier in the DB for aggregated scans we imported from our regular scans
 // of the web's top domains
 const topDomainsSource = "TOP_DOMAINS"
 
-// Update imports aggregated scans from a remote server to the datastore.
+// Import imports aggregated scans from a remote server to the datastore.
 // Expected format is JSONL (newline-separated JSON objects).
 func Import(store Store) error {
 	statsURL := os.Getenv("REMOTE_STATS_URL")
@@ -108,12 +108,12 @@ func (s Series) MarshalJSON() ([]byte, error) {
 // of the top million domains over time.
 func Get(store Store) (map[string]Series, error) {
 	result := make(map[string]Series)
-	series, err := store.GetMTASTSStats(topDomainsSource)
+	series, err := store.GetStats(topDomainsSource)
 	if err != nil {
 		return result, err
 	}
 	result["top_million"] = series
-	series, err = store.GetMTASTSStats("local")
+	series, err = store.GetStats("local")
 	if err != nil {
 		return result, err
 	}

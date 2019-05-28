@@ -117,9 +117,9 @@ func (db *SQLDatabase) PutScan(scan models.Scan) error {
 	return err
 }
 
-// GetMTASTSStats returns statistics about a MTA-STS adoption from a single
+// GetStats returns statistics about a MTA-STS adoption from a single
 // source domains to check.
-func (db *SQLDatabase) GetMTASTSStats(source string) (stats.Series, error) {
+func (db *SQLDatabase) GetStats(source string) (stats.Series, error) {
 	series := stats.Series{}
 	rows, err := db.conn.Query(
 		`SELECT time, with_mxs, mta_sts_testing, mta_sts_enforce
