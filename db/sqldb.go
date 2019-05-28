@@ -165,7 +165,7 @@ func (db *SQLDatabase) PutLocalStats(date time.Time) (checker.AggregatedScan, er
 		Source: "local",
 		Time:   date,
 	}
-	err := db.conn.QueryRow(query, start, end).Scan(&a.WithMXs, &a.MTASTSTesting, &a.MTASTSEnforce)
+	err := db.conn.QueryRow(query, start.UTC(), end.UTC()).Scan(&a.WithMXs, &a.MTASTSTesting, &a.MTASTSEnforce)
 	if err != nil {
 		return a, err
 	}
