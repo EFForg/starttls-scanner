@@ -353,7 +353,7 @@ func dateMustParse(date string, t *testing.T) time.Time {
 	return parsed
 }
 
-func TestGetMTASTSStats(t *testing.T) {
+func TestGetStats(t *testing.T) {
 	database.ClearTables()
 	may1 := dateMustParse("2019-May-01", t)
 	may2 := dateMustParse("2019-May-02", t)
@@ -381,7 +381,7 @@ func TestGetMTASTSStats(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	result, err := database.GetMTASTSStats("domains-depot")
+	result, err := database.GetStats("domains-depot")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -459,7 +459,7 @@ func TestGetLocalStats(t *testing.T) {
 		database.PutLocalStats(lastWeek.Add(day * time.Duration(i)))
 	}
 
-	stats, err := database.GetMTASTSStats("local")
+	stats, err := database.GetStats("local")
 	if err != nil {
 		t.Fatal(err)
 	}

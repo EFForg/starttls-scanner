@@ -38,7 +38,7 @@ type Database interface {
 	// Caches stats for the 14 days preceding time.Time
 	PutLocalStats(time.Time) (checker.AggregatedScan, error)
 	// Gets counts per day of hosts supporting MTA-STS for a given source.
-	GetMTASTSStats(string) (stats.Series, error)
+	GetStats(string) (stats.Series, error)
 	// Upserts domain state.
 	PutDomain(models.Domain) error
 	// Retrieves state of a domain
