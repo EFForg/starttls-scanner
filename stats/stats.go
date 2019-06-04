@@ -71,6 +71,7 @@ func ImportRegularly(store Store, interval time.Duration) {
 type Series map[time.Time]float64
 
 // MarshalJSON marshals a Series to the format expected by chart.js.
+// See https://www.chartjs.org/docs/latest/
 func (s Series) MarshalJSON() ([]byte, error) {
 	type xyPt struct {
 		X time.Time `json:"x"`
