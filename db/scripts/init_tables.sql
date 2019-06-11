@@ -87,7 +87,8 @@ CREATE TABLE IF NOT EXISTS aggregated_scans
     attempted       INTEGER DEFAULT 0,
     with_mxs        INTEGER DEFAULT 0,
     mta_sts_testing INTEGER DEFAULT 0,
-    mta_sts_enforce INTEGER DEFAULT 0
+    mta_sts_enforce INTEGER DEFAULT 0,
+    UNIQUE (time, source)
 );
 
 ALTER TABLE domains ADD COLUMN IF NOT EXISTS queue_weeks INTEGER DEFAULT 4;
@@ -105,12 +106,7 @@ ALTER TABLE IF EXISTS aggregated_scans ADD COLUMN IF NOT EXISTS with_mxs INTEGER
 
 ALTER TABLE domains ADD COLUMN IF NOT EXISTS mta_sts BOOLEAN DEFAULT FALSE;
 
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT conname
-                   FROM   pg_constraint
-                   WHERE  conname = 'aggregated_scans_time_source_key')
-    THEN
-        ALTER TABLE aggregated_scans ADD UNIQUE (time, source);
-    END IF;
-END$$;
+BEGIN;
+    ALTER TABLE aggregated_scans DROP CONSTRAINT aggregated_scans_time_source_key;
+    ALTER TABLE aggregated_scans ADD UNIQUE (time, source);
+COMMIT;
