@@ -96,8 +96,8 @@ ALTER TABLE domains ADD COLUMN IF NOT EXISTS testing_start TIMESTAMP;
 
 -- Drop & re-add constraint
 BEGIN;
-  ALTER TABLE domains DROP CONSTRAINT domains_pkey;
-  ALTER TABLE domains ADD PRIMARY KEY (domain, status);
+    ALTER TABLE domains DROP CONSTRAINT domains_pkey;
+    ALTER TABLE domains ADD PRIMARY KEY (domain, status);
 COMMIT;
 
 ALTER TABLE IF EXISTS aggregated_scans DROP COLUMN IF EXISTS connected;
@@ -105,7 +105,12 @@ ALTER TABLE IF EXISTS aggregated_scans ADD COLUMN IF NOT EXISTS with_mxs INTEGER
 
 ALTER TABLE domains ADD COLUMN IF NOT EXISTS mta_sts BOOLEAN DEFAULT FALSE;
 
-BEGIN;
-  ALTER TABLE aggregated_scans DROP CONSTRAINT aggregated_scans_time_source_key;
-  ALTER TABLE aggregated_scans ADD UNIQUE (time, source);
-COMMIT;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT conname
+                   FROM   pg_constraint
+                   WHERE  conname = 'aggregated_scans_time_source_key')
+    THEN
+        ALTER TABLE aggregated_scans ADD UNIQUE (time, source);
+    END IF;
+END$$;
