@@ -23,8 +23,10 @@ type AggregatedScan struct {
 }
 
 const (
+	// TopDomainsSource labels aggregated scans of the top million domains.
 	TopDomainsSource = "TOP_DOMAINS"
-	LocalSource      = "LOCAL"
+	// LocalSource labels aggregated scan data for users of the web frontend.
+	LocalSource = "LOCAL"
 )
 
 // TotalMTASTS returns the number of domains supporting test or enforce mode.
