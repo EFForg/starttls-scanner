@@ -3,6 +3,7 @@ package stats
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -48,11 +49,12 @@ func Import(store Store) error {
 	return nil
 }
 
-// Update imports aggregated scans and update our cache table of local scans.
+// Update imports aggregated scans and updates our cache table of local scans.
 // Log any errors.
 func Update(store Store) {
 	err := Import(store)
 	if err != nil {
+		err = fmt.Errorf("Failed to import top domains stats: %v", err)
 		log.Println(err)
 		raven.CaptureError(err, nil)
 	}
@@ -60,6 +62,7 @@ func Update(store Store) {
 	// full days and maintain regularly intervals.
 	_, err = store.PutLocalStats(time.Now().UTC().Truncate(24 * time.Hour))
 	if err != nil {
+		err = fmt.Errorf("Failed to update local stats: %v", err)
 		log.Println(err)
 		raven.CaptureError(err, nil)
 	}
