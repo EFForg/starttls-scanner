@@ -14,7 +14,7 @@ import (
 func TestGetStats(t *testing.T) {
 	err := api.Database.PutAggregatedScan(checker.AggregatedScan{
 		Time:          time.Now(),
-		Source:        "local",
+		Source:        checker.LocalSource,
 		Attempted:     10,
 		WithMXs:       8,
 		MTASTSTesting: 3,

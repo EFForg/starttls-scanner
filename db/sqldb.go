@@ -162,7 +162,7 @@ func (db *SQLDatabase) PutLocalStats(date time.Time) (checker.AggregatedScan, er
 	start := date.Add(-14 * 24 * time.Hour)
 	end := date
 	a := checker.AggregatedScan{
-		Source: "local",
+		Source: checker.LocalSource,
 		Time:   date,
 	}
 	err := db.conn.QueryRow(query, start.UTC(), end.UTC()).Scan(&a.WithMXs, &a.MTASTSTesting, &a.MTASTSEnforce)

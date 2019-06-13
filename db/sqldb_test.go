@@ -360,7 +360,7 @@ func TestGetStats(t *testing.T) {
 	data := []checker.AggregatedScan{
 		checker.AggregatedScan{
 			Time:          may1,
-			Source:        "domains-depot",
+			Source:        checker.TopDomainsSource,
 			Attempted:     5,
 			WithMXs:       4,
 			MTASTSTesting: 2,
@@ -368,7 +368,7 @@ func TestGetStats(t *testing.T) {
 		},
 		checker.AggregatedScan{
 			Time:          may2,
-			Source:        "domains-depot",
+			Source:        checker.TopDomainsSource,
 			Attempted:     10,
 			WithMXs:       8,
 			MTASTSTesting: 1,
@@ -381,11 +381,10 @@ func TestGetStats(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	result, err := database.GetStats("domains-depot")
+	result, err := database.GetStats(checker.TopDomainsSource)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// @TODO this can be better now that the map is gone
 	if result[0].TotalMTASTS() != 3 || result[1].TotalMTASTS() != 4 {
 		t.Errorf("Incorrect MTA-STS stats, got %v", result)
 	}
@@ -459,7 +458,7 @@ func TestGetLocalStats(t *testing.T) {
 		database.PutLocalStats(lastWeek.Add(day * time.Duration(i)))
 	}
 
-	stats, err := database.GetStats("local")
+	stats, err := database.GetStats(checker.LocalSource)
 	if err != nil {
 		t.Fatal(err)
 	}

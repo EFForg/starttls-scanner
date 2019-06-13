@@ -20,7 +20,7 @@ func (m *mockAgScanStore) PutAggregatedScan(agScan checker.AggregatedScan) error
 
 func (m *mockAgScanStore) PutLocalStats(date time.Time) (checker.AggregatedScan, error) {
 	a := checker.AggregatedScan{
-		Source: "local",
+		Source: checker.LocalSource,
 		Time:   date,
 	}
 	*m = append(*m, a)
@@ -71,8 +71,8 @@ func TestImport(t *testing.T) {
 		if want.PercentMTASTS() != got.PercentMTASTS() {
 			t.Errorf("\nExpected\n %v\nGot\n %v", agScans, store)
 		}
-		if got.Source != topDomainsSource {
-			t.Errorf("Expected source for imported domains to be %s", topDomainsSource)
+		if got.Source != checker.TopDomainsSource {
+			t.Errorf("Expected source for imported domains to be %s", checker.TopDomainsSource)
 		}
 	}
 }

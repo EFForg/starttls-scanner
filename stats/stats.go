@@ -19,10 +19,6 @@ type Store interface {
 	GetStats(string) (Series, error)
 }
 
-// Identifier in the DB for aggregated scans we imported from our regular scans
-// of the web's top domains
-const topDomainsSource = "TOP_DOMAINS"
-
 // Import imports aggregated scans from a remote server to the datastore.
 // Expected format is JSONL (newline-separated JSON objects).
 func Import(store Store) error {
@@ -40,7 +36,7 @@ func Import(store Store) error {
 		if err != nil {
 			return err
 		}
-		a.Source = topDomainsSource
+		a.Source = checker.TopDomainsSource
 		err = store.PutAggregatedScan(a)
 		if err != nil {
 			return err
@@ -92,7 +88,7 @@ func (s Series) MarshalJSON() ([]byte, error) {
 	xySeries := make([]xyPt, 0)
 	for _, a := range s {
 		var y float64
-		if a.Source != topDomainsSource {
+		if a.Source != checker.TopDomainsSource {
 			y = a.PercentMTASTS()
 		} else {
 			// Top million scans have too few MTA-STS domains to use a percent,
@@ -106,17 +102,15 @@ func (s Series) MarshalJSON() ([]byte, error) {
 
 // Get retrieves MTA-STS adoption statistics for user-initiated scans and scans
 // of the top million domains over time.
-func Get(store Store) (map[string]Series, error) {
-	result := make(map[string]Series)
-	series, err := store.GetStats(topDomainsSource)
-	if err != nil {
-		return result, err
+func Get(store Store) (result map[string]Series, err error) {
+	result = make(map[string]Series)
+	sources := []string{checker.TopDomainsSource, checker.LocalSource}
+	for _, source := range sources {
+		series, err := store.GetStats(source)
+		if err != nil {
+			return result, err
+		}
+		result[source] = series
 	}
-	result["top_million"] = series
-	series, err = store.GetStats("local")
-	if err != nil {
-		return result, err
-	}
-	result["local"] = series
 	return result, err
 }

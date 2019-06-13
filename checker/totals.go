@@ -22,6 +22,11 @@ type AggregatedScan struct {
 	MTASTSEnforceList []string
 }
 
+const (
+	TopDomainsSource = "TOP_DOMAINS"
+	LocalSource      = "LOCAL"
+)
+
 // TotalMTASTS returns the number of domains supporting test or enforce mode.
 func (a AggregatedScan) TotalMTASTS() int {
 	return a.MTASTSTesting + a.MTASTSEnforce
