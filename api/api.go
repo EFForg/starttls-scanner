@@ -42,12 +42,12 @@ type checkPerformer func(API, string) (checker.DomainResult, error)
 // Any POST request accepts either URL query parameters or data value parameters,
 // and prefers the latter if both are present.
 type API struct {
-	Database    db.Database
-	CheckDomain checkPerformer
-	List        PolicyList
-	DontScan    map[string]bool
-	Emailer     EmailSender
-	Templates   map[string]*template.Template
+	Database            db.Database
+	checkDomainOverride checkPerformer
+	List                PolicyList
+	DontScan            map[string]bool
+	Emailer             EmailSender
+	Templates           map[string]*template.Template
 }
 
 // PolicyList interface wraps a policy-list like structure.
@@ -75,6 +75,13 @@ type APIResponse struct {
 
 type apiHandler func(r *http.Request) APIResponse
 
+func (api *API) checkDomain(domain string) (checker.DomainResult, error) {
+	if api.checkDomainOverride == nil {
+		return defaultCheck(*api, domain)
+	}
+	return api.checkDomainOverride(*api, domain)
+}
+
 func (api *API) wrapper(handler apiHandler) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		response := handler(r)
@@ -95,7 +102,9 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 }
 
-func RegisterHandlers(api *API, mux *http.ServeMux) http.Handler {
+// RegisterHandlers binds API functions to the given http server,
+// and returns the resulting handler.
+func (api *API) RegisterHandlers(mux *http.ServeMux) http.Handler {
 	mux.HandleFunc("/sns", HandleSESNotification(api.Database))
 	mux.HandleFunc("/api/scan", api.wrapper(api.Scan))
 	mux.Handle("/api/queue",
@@ -106,7 +115,7 @@ func RegisterHandlers(api *API, mux *http.ServeMux) http.Handler {
 	return middleware(mux)
 }
 
-func DefaultCheck(api API, domain string) (checker.DomainResult, error) {
+func defaultCheck(api API, domain string) (checker.DomainResult, error) {
 	policyChan := models.Domain{Name: domain}.AsyncPolicyListCheck(api.Database, api.List)
 	c := checker.Checker{
 		Cache: &checker.ScanCache{
@@ -152,7 +161,7 @@ func (api API) Scan(r *http.Request) APIResponse {
 			}
 		}
 		// 1. Conduct scan via starttls-checker
-		scanData, err := api.CheckDomain(api, domain)
+		scanData, err := api.checkDomain(domain)
 		if err != nil {
 			return APIResponse{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 		}
@@ -205,7 +214,7 @@ func getDomainParams(r *http.Request) (models.Domain, error) {
 	if err == nil {
 		domain.Email = givenEmail
 	} else {
-		domain.Email = ValidationAddress(&domain)
+		domain.Email = validationAddress(&domain)
 	}
 	queueWeeks, err := getInt("weeks", r, 4, 52, 4)
 	if err != nil {
@@ -370,6 +379,7 @@ func (api *API) writeJSON(w http.ResponseWriter, apiResponse APIResponse) {
 	fmt.Fprintf(w, "%s\n", b)
 }
 
+// ParseTemplates initializes our HTML template data
 func (api *API) ParseTemplates() {
 	names := []string{"default", "scan"}
 	api.Templates = make(map[string]*template.Template)

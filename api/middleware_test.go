@@ -17,7 +17,7 @@ func TestPanicRecovery(t *testing.T) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/panic", panickingHandler)
-	panicServer := httptest.NewServer(RegisterHandlers(api, mux))
+	panicServer := httptest.NewServer(api.RegisterHandlers(mux))
 	defer panicServer.Close()
 
 	resp, err := http.Get(fmt.Sprintf("%s/panic", panicServer.URL))
@@ -36,7 +36,7 @@ func panickingHandler(w http.ResponseWriter, r *http.Request) {
 
 func TestAllowedOrigins(t *testing.T) {
 	os.Setenv("ALLOWED_ORIGINS", "foo.example.com,bar.example.com")
-	server := httptest.NewServer(RegisterHandlers(api, http.NewServeMux()))
+	server := httptest.NewServer(api.RegisterHandlers(http.NewServeMux()))
 	defer server.Close()
 
 	// Allowed domain should get CORS header

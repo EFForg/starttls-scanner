@@ -24,7 +24,7 @@ import (
 // ServePublicEndpoints serves all public HTTP endpoints.
 func ServePublicEndpoints(a *api.API, cfg *db.Config) {
 	mux := http.NewServeMux()
-	mainHandler := api.RegisterHandlers(a, mux)
+	mainHandler := a.RegisterHandlers(mux)
 
 	portString, err := util.ValidPort(cfg.Port)
 	if err != nil {
@@ -91,11 +91,10 @@ func main() {
 	}
 	list := policy.MakeUpdatedList()
 	a := api.API{
-		Database:    db,
-		CheckDomain: api.DefaultCheck,
-		List:        list,
-		DontScan:    loadDontScan(),
-		Emailer:     emailConfig,
+		Database: db,
+		List:     list,
+		DontScan: loadDontScan(),
+		Emailer:  emailConfig,
 	}
 	a.ParseTemplates()
 	if os.Getenv("VALIDATE_LIST") == "1" {

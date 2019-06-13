@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -43,6 +44,7 @@ func TestScanWriteHTML(t *testing.T) {
 	}
 
 	w := httptest.NewRecorder()
+	fmt.Println(response.Response)
 	api.writeHTML(w, response)
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
@@ -126,9 +128,9 @@ func TestScanCached(t *testing.T) {
 	data := url.Values{}
 	data.Set("domain", "eff.org")
 	http.PostForm(server.URL+"/api/scan", data)
-	original, _ := api.CheckDomain(*api, "eff.org")
+	original, _ := api.checkDomain("eff.org")
 	// Perform scan again, with different expected result.
-	api.CheckDomain = mockCheckPerform("somethingelse")
+	api.checkDomainOverride = mockCheckPerform("somethingelse")
 	resp, _ := http.PostForm(server.URL+"/api/scan", data)
 	scanBody, _ := ioutil.ReadAll(resp.Body)
 	scan := models.Scan{}

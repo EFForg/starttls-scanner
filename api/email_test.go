@@ -77,7 +77,7 @@ func TestSendEmailToBlacklistedAddressFails(t *testing.T) {
 	if err != nil {
 		t.Errorf("PutBlacklistedEmail failed: %v\n", err)
 	}
-	c := &emailConfig{database: api.Database}
+	c := &EmailConfig{database: api.Database}
 	err = c.sendEmail("Subject", "Body", "fail@example.com")
 	if err == nil || !strings.Contains(err.Error(), "blacklisted") {
 		t.Error("attempting to send mail to blacklisted address should fail")

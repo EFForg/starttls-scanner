@@ -91,15 +91,15 @@ func TestMain(m *testing.M) {
 		"eff.org": true,
 	}
 	api = &API{
-		Database:    sqldb,
-		CheckDomain: mockCheckPerform("testequal"),
-		List:        mockList{domains: fakeList},
-		Emailer:     mockEmailer{},
-		DontScan:    map[string]bool{"dontscan.com": true},
+		Database:            sqldb,
+		checkDomainOverride: mockCheckPerform("testequal"),
+		List:                mockList{domains: fakeList},
+		Emailer:             mockEmailer{},
+		DontScan:            map[string]bool{"dontscan.com": true},
 	}
 	api.ParseTemplates()
 	mux := http.NewServeMux()
-	server = httptest.NewServer(RegisterHandlers(api, mux))
+	server = httptest.NewServer(api.RegisterHandlers(mux))
 	defer server.Close()
 	code := m.Run()
 	os.Exit(code)

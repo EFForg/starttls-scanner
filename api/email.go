@@ -17,9 +17,10 @@ import (
 	raven "github.com/getsentry/raven-go"
 )
 
+// EmailConfig contains
 // Configuration variables needed to submit emails for sending, as well as
 // to generate the templates.
-type emailConfig struct {
+type EmailConfig struct {
 	auth               smtp.Auth
 	username           string
 	password           string
@@ -49,10 +50,12 @@ We also recommend signing up for the STARTTLS Everywhere mailing list at https:/
 Thanks for helping us secure email for everyone :)
 `
 
-func MakeEmailConfigFromEnv(database db.Database) (emailConfig, error) {
+// MakeEmailConfigFromEnv initializes our email config object with
+// environment variables.
+func MakeEmailConfigFromEnv(database db.Database) (EmailConfig, error) {
 	// create config
 	varErrs := util.Errors{}
-	c := emailConfig{
+	c := EmailConfig{
 		username:           util.RequireEnv("SMTP_USERNAME", &varErrs),
 		password:           util.RequireEnv("SMTP_PASSWORD", &varErrs),
 		submissionHostname: util.RequireEnv("SMTP_ENDPOINT", &varErrs),
@@ -89,7 +92,7 @@ func MakeEmailConfigFromEnv(database db.Database) (emailConfig, error) {
 	return c, nil
 }
 
-func ValidationAddress(domain *models.Domain) string {
+func validationAddress(domain *models.Domain) string {
 	return fmt.Sprintf("postmaster@%s", domain.Name)
 }
 
@@ -100,13 +103,13 @@ func validationEmailText(domain string, contactEmail string, hostnames []string,
 
 // SendValidation sends a validation e-mail for the domain outlined by domainInfo.
 // The validation link is generated using a token.
-func (c emailConfig) SendValidation(domain *models.Domain, token string) error {
+func (c EmailConfig) SendValidation(domain *models.Domain, token string) error {
 	emailContent := validationEmailText(domain.Name, domain.Email, domain.MXs, token,
 		c.website)
-	return c.sendEmail(validationEmailSubject, emailContent, ValidationAddress(domain))
+	return c.sendEmail(validationEmailSubject, emailContent, validationAddress(domain))
 }
 
-func (c emailConfig) sendEmail(subject string, body string, address string) error {
+func (c EmailConfig) sendEmail(subject string, body string, address string) error {
 	blacklisted, err := c.database.IsBlacklistedEmail(address)
 	if err != nil {
 		return err
