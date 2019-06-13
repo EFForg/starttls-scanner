@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"encoding/json"
@@ -17,6 +17,7 @@ import (
 	"github.com/EFForg/starttls-backend/db"
 	"github.com/EFForg/starttls-backend/models"
 	"github.com/EFForg/starttls-backend/policy"
+	"github.com/EFForg/starttls-backend/util"
 	"github.com/getsentry/raven-go"
 )
 
@@ -89,7 +90,23 @@ func (api *API) wrapper(handler apiHandler) func(w http.ResponseWriter, r *http.
 	}
 }
 
-func defaultCheck(api API, domain string) (checker.DomainResult, error) {
+func pingHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+}
+
+func RegisterHandlers(api *API, mux *http.ServeMux) http.Handler {
+	mux.HandleFunc("/sns", HandleSESNotification(api.Database))
+	mux.HandleFunc("/api/scan", api.wrapper(api.Scan))
+	mux.Handle("/api/queue",
+		throttleHandler(time.Hour, 20, http.HandlerFunc(api.wrapper(api.Queue))))
+	mux.HandleFunc("/api/validate", api.wrapper(api.Validate))
+	mux.HandleFunc("/api/stats", api.wrapper(api.Stats))
+	mux.HandleFunc("/api/ping", pingHandler)
+	return middleware(mux)
+}
+
+func DefaultCheck(api API, domain string) (checker.DomainResult, error) {
 	policyChan := models.Domain{Name: domain}.AsyncPolicyListCheck(api.Database, api.List)
 	c := checker.Checker{
 		Cache: &checker.ScanCache{
@@ -184,11 +201,11 @@ func getDomainParams(r *http.Request) (models.Domain, error) {
 		MTASTS: mtasts == "on",
 		State:  models.StateUnconfirmed,
 	}
-	email, err := getParam("email", r)
+	givenEmail, err := getParam("email", r)
 	if err == nil {
-		domain.Email = email
+		domain.Email = givenEmail
 	} else {
-		domain.Email = validationAddress(&domain)
+		domain.Email = ValidationAddress(&domain)
 	}
 	queueWeeks, err := getInt("weeks", r, 4, 52, 4)
 	if err != nil {
@@ -201,7 +218,7 @@ func getDomainParams(r *http.Request) (models.Domain, error) {
 			if len(hostname) == 0 {
 				continue
 			}
-			if !validDomainName(strings.TrimPrefix(hostname, ".")) {
+			if !util.ValidDomainName(strings.TrimPrefix(hostname, ".")) {
 				return domain, fmt.Errorf("Hostname %s is invalid", hostname)
 			}
 			domain.MXs = append(domain.MXs, hostname)
@@ -353,11 +370,11 @@ func (api *API) writeJSON(w http.ResponseWriter, apiResponse APIResponse) {
 	fmt.Fprintf(w, "%s\n", b)
 }
 
-func (api *API) parseTemplates() {
+func (api *API) ParseTemplates() {
 	names := []string{"default", "scan"}
 	api.Templates = make(map[string]*template.Template)
 	for _, name := range names {
-		path := fmt.Sprintf("views/%s.html.tmpl", name)
+		path := fmt.Sprintf("../views/%s.html.tmpl", name)
 		tmpl, err := template.ParseFiles(path)
 		if err != nil {
 			raven.CaptureError(err, nil)

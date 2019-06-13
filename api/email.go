@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"crypto/tls"
@@ -13,6 +13,7 @@ import (
 
 	"github.com/EFForg/starttls-backend/db"
 	"github.com/EFForg/starttls-backend/models"
+	"github.com/EFForg/starttls-backend/util"
 	raven "github.com/getsentry/raven-go"
 )
 
@@ -48,16 +49,16 @@ We also recommend signing up for the STARTTLS Everywhere mailing list at https:/
 Thanks for helping us secure email for everyone :)
 `
 
-func makeEmailConfigFromEnv(database db.Database) (emailConfig, error) {
+func MakeEmailConfigFromEnv(database db.Database) (emailConfig, error) {
 	// create config
-	varErrs := Errors{}
+	varErrs := util.Errors{}
 	c := emailConfig{
-		username:           requireEnv("SMTP_USERNAME", &varErrs),
-		password:           requireEnv("SMTP_PASSWORD", &varErrs),
-		submissionHostname: requireEnv("SMTP_ENDPOINT", &varErrs),
-		port:               requireEnv("SMTP_PORT", &varErrs),
-		sender:             requireEnv("SMTP_FROM_ADDRESS", &varErrs),
-		website:            requireEnv("FRONTEND_WEBSITE_LINK", &varErrs),
+		username:           util.RequireEnv("SMTP_USERNAME", &varErrs),
+		password:           util.RequireEnv("SMTP_PASSWORD", &varErrs),
+		submissionHostname: util.RequireEnv("SMTP_ENDPOINT", &varErrs),
+		port:               util.RequireEnv("SMTP_PORT", &varErrs),
+		sender:             util.RequireEnv("SMTP_FROM_ADDRESS", &varErrs),
+		website:            util.RequireEnv("FRONTEND_WEBSITE_LINK", &varErrs),
 		database:           database,
 	}
 	if len(varErrs) > 0 {
@@ -88,7 +89,7 @@ func makeEmailConfigFromEnv(database db.Database) (emailConfig, error) {
 	return c, nil
 }
 
-func validationAddress(domain *models.Domain) string {
+func ValidationAddress(domain *models.Domain) string {
 	return fmt.Sprintf("postmaster@%s", domain.Name)
 }
 
@@ -102,7 +103,7 @@ func validationEmailText(domain string, contactEmail string, hostnames []string,
 func (c emailConfig) SendValidation(domain *models.Domain, token string) error {
 	emailContent := validationEmailText(domain.Name, domain.Email, domain.MXs, token,
 		c.website)
-	return c.sendEmail(validationEmailSubject, emailContent, validationAddress(domain))
+	return c.sendEmail(validationEmailSubject, emailContent, ValidationAddress(domain))
 }
 
 func (c emailConfig) sendEmail(subject string, body string, address string) error {
@@ -196,10 +197,10 @@ func (r *blacklistRequest) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// handleSESNotification handles AWS SES bounces and complaints submitted to a webhook
+// HandleSESNotification handles AWS SES bounces and complaints submitted to a webhook
 // via AWS SNS (Simple Notification Service).
 // The SNS webhook is configured to include a secret API key stored in the environment.
-func handleSESNotification(database db.Database) func(http.ResponseWriter, *http.Request) {
+func HandleSESNotification(database db.Database) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		keyParam := r.URL.Query()["amazon_authorize_key"]
 		if len(keyParam) == 0 || keyParam[0] != os.Getenv("AMAZON_AUTHORIZE_KEY") {

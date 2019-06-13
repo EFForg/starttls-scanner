@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"encoding/json"
@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/EFForg/starttls-backend/util"
 )
 
 func TestValidationEmailText(t *testing.T) {
@@ -22,8 +24,8 @@ func shouldPanic(t *testing.T, message string) {
 }
 
 func TestRequireMissingEnvPanics(t *testing.T) {
-	varErrs := Errors{}
-	requireEnv("FAKE_ENV_VAR", &varErrs)
+	varErrs := util.Errors{}
+	util.RequireEnv("FAKE_ENV_VAR", &varErrs)
 	if len(varErrs) == 0 {
 		t.Errorf("should have received an error")
 	}
@@ -41,7 +43,7 @@ func TestRequireEnvConfig(t *testing.T) {
 		requiredVars[varName] = os.Getenv(varName)
 		os.Setenv(varName, "")
 	}
-	_, err := makeEmailConfigFromEnv(api.Database)
+	_, err := MakeEmailConfigFromEnv(api.Database)
 	if err == nil {
 		t.Errorf("should have received multiple error from unset env vars")
 	}
