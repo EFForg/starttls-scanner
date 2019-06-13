@@ -33,7 +33,7 @@ const cacheScanTime = time.Minute
 type checkPerformer func(API, string) (checker.DomainResult, error)
 
 // API is the HTTP API that this service provides.
-// All requests respond with an APIResponse JSON, with fields:
+// All requests respond with an response JSON, with fields:
 // {
 //     status_code // HTTP status code of request
 //     message // Any error message accompanying the status_code. If 200, empty.
@@ -65,15 +65,14 @@ type EmailSender interface {
 	SendValidation(*models.Domain, string) error
 }
 
-// APIResponse wraps all the responses from this API.
-type APIResponse struct {
+type response struct {
 	StatusCode   int         `json:"status_code"`
 	Message      string      `json:"message"`
 	Response     interface{} `json:"response"`
 	templateName string      `json:"-"`
 }
 
-type apiHandler func(r *http.Request) APIResponse
+type apiHandler func(r *http.Request) response
 
 func (api *API) checkDomain(domain string) (checker.DomainResult, error) {
 	if api.checkDomainOverride == nil {
@@ -106,11 +105,11 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 // and returns the resulting handler.
 func (api *API) RegisterHandlers(mux *http.ServeMux) http.Handler {
 	mux.HandleFunc("/sns", HandleSESNotification(api.Database))
-	mux.HandleFunc("/api/scan", api.wrapper(api.Scan))
+	mux.HandleFunc("/api/scan", api.wrapper(api.scan))
 	mux.Handle("/api/queue",
-		throttleHandler(time.Hour, 20, http.HandlerFunc(api.wrapper(api.Queue))))
-	mux.HandleFunc("/api/validate", api.wrapper(api.Validate))
-	mux.HandleFunc("/api/stats", api.wrapper(api.Stats))
+		throttleHandler(time.Hour, 20, http.HandlerFunc(api.wrapper(api.queue))))
+	mux.HandleFunc("/api/validate", api.wrapper(api.validate))
+	mux.HandleFunc("/api/stats", api.wrapper(api.stats))
 	mux.HandleFunc("/api/ping", pingHandler)
 	return middleware(mux)
 }
@@ -137,15 +136,15 @@ func defaultCheck(api API, domain string) (checker.DomainResult, error) {
 //   GET /api/scan?domain=<domain>
 //        Retrieves most recent scan for domain.
 // Both set a models.Scan JSON as the response.
-func (api API) Scan(r *http.Request) APIResponse {
+func (api API) scan(r *http.Request) response {
 	domain, err := getASCIIDomain(r)
 	if err != nil {
-		return APIResponse{StatusCode: http.StatusBadRequest, Message: err.Error()}
+		return response{StatusCode: http.StatusBadRequest, Message: err.Error()}
 	}
 	// Check if we shouldn't scan this domain
 	if api.DontScan != nil {
 		if _, ok := api.DontScan[domain]; ok {
-			return APIResponse{StatusCode: http.StatusTooManyRequests}
+			return response{StatusCode: http.StatusTooManyRequests}
 		}
 	}
 	// POST: Force scan to be conducted
@@ -154,7 +153,7 @@ func (api API) Scan(r *http.Request) APIResponse {
 		scan, err := api.Database.GetLatestScan(domain)
 		if err == nil && scan.Version == models.ScanVersion &&
 			time.Now().Before(scan.Timestamp.Add(cacheScanTime)) {
-			return APIResponse{
+			return response{
 				StatusCode:   http.StatusOK,
 				Response:     scan,
 				templateName: "scan",
@@ -163,7 +162,7 @@ func (api API) Scan(r *http.Request) APIResponse {
 		// 1. Conduct scan via starttls-checker
 		scanData, err := api.checkDomain(domain)
 		if err != nil {
-			return APIResponse{StatusCode: http.StatusInternalServerError, Message: err.Error()}
+			return response{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 		}
 		scan = models.Scan{
 			Domain:    domain,
@@ -174,9 +173,9 @@ func (api API) Scan(r *http.Request) APIResponse {
 		// 2. Put scan into DB
 		err = api.Database.PutScan(scan)
 		if err != nil {
-			return APIResponse{StatusCode: http.StatusInternalServerError, Message: err.Error()}
+			return response{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 		}
-		return APIResponse{
+		return response{
 			StatusCode:   http.StatusOK,
 			Response:     scan,
 			templateName: "scan",
@@ -185,11 +184,11 @@ func (api API) Scan(r *http.Request) APIResponse {
 	} else if r.Method == http.MethodGet {
 		scan, err := api.Database.GetLatestScan(domain)
 		if err != nil {
-			return APIResponse{StatusCode: http.StatusNotFound, Message: err.Error()}
+			return response{StatusCode: http.StatusNotFound, Message: err.Error()}
 		}
-		return APIResponse{StatusCode: http.StatusOK, Response: scan}
+		return response{StatusCode: http.StatusOK, Response: scan}
 	} else {
-		return APIResponse{StatusCode: http.StatusMethodNotAllowed,
+		return response{StatusCode: http.StatusMethodNotAllowed,
 			Message: "/api/scan only accepts POST and GET requests"}
 	}
 }
@@ -252,7 +251,7 @@ func getDomainParams(r *http.Request) (models.Domain, error) {
 //        email (optional): Contact email associated with domain.
 //   GET  /api/queue?domain=<domain>
 //        Sets models.Domain object as response.
-func (api API) Queue(r *http.Request) APIResponse {
+func (api API) queue(r *http.Request) response {
 	// POST: Insert this domain into the queue
 	if r.Method == http.MethodPost {
 		domain, err := getDomainParams(r)
@@ -272,7 +271,7 @@ func (api API) Queue(r *http.Request) APIResponse {
 			log.Print(err)
 			return serverError("Unable to send validation e-mail")
 		}
-		return APIResponse{
+		return response{
 			StatusCode: http.StatusOK,
 			Response:   fmt.Sprintf("Thank you for submitting your domain. Please check postmaster@%s to validate that you control the domain.", domain.Name),
 		}
@@ -285,14 +284,14 @@ func (api API) Queue(r *http.Request) APIResponse {
 		}
 		domainObj, err := models.GetDomain(api.Database, domainName)
 		if err != nil {
-			return APIResponse{StatusCode: http.StatusNotFound, Message: err.Error()}
+			return response{StatusCode: http.StatusNotFound, Message: err.Error()}
 		}
-		return APIResponse{
+		return response{
 			StatusCode: http.StatusOK,
 			Response:   domainObj,
 		}
 	}
-	return APIResponse{StatusCode: http.StatusMethodNotAllowed,
+	return response{StatusCode: http.StatusMethodNotAllowed,
 		Message: "/api/queue only accepts POST and GET requests"}
 }
 
@@ -300,13 +299,13 @@ func (api API) Queue(r *http.Request) APIResponse {
 //   POST /api/validate
 //        token: token to validate/redeem
 //        Sets the queued domain name as response.
-func (api API) Validate(r *http.Request) APIResponse {
+func (api API) validate(r *http.Request) response {
 	token, err := getParam("token", r)
 	if err != nil {
-		return APIResponse{StatusCode: http.StatusBadRequest, Message: err.Error()}
+		return response{StatusCode: http.StatusBadRequest, Message: err.Error()}
 	}
 	if r.Method != http.MethodPost {
-		return APIResponse{StatusCode: http.StatusMethodNotAllowed,
+		return response{StatusCode: http.StatusMethodNotAllowed,
 			Message: "/api/validate only accepts POST requests"}
 	}
 	tokenData := models.Token{Token: token}
@@ -317,7 +316,7 @@ func (api API) Validate(r *http.Request) APIResponse {
 	if dbErr != nil {
 		return serverError(dbErr.Error())
 	}
-	return APIResponse{StatusCode: http.StatusOK, Response: domain}
+	return response{StatusCode: http.StatusOK, Response: domain}
 }
 
 // Retrieve "domain" parameter from request as ASCII
@@ -367,7 +366,7 @@ func getInt(param string, r *http.Request, lowInc int, highExc int, defaultNum i
 
 // Writes `v` as a JSON object to http.ResponseWriter `w`. If an error
 // occurs, writes `http.StatusInternalServerError` to `w`.
-func (api *API) writeJSON(w http.ResponseWriter, apiResponse APIResponse) {
+func (api *API) writeJSON(w http.ResponseWriter, apiResponse response) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(apiResponse.StatusCode)
 	b, err := json.MarshalIndent(apiResponse, "", "  ")
@@ -394,16 +393,16 @@ func (api *API) ParseTemplates() {
 	}
 }
 
-func (api *API) writeHTML(w http.ResponseWriter, apiResponse APIResponse) {
+func (api *API) writeHTML(w http.ResponseWriter, apiResponse response) {
 	// Add some additional useful fields for use in templates.
 	data := struct {
-		APIResponse
+		response
 		BaseURL    string
 		StatusText string
 	}{
-		APIResponse: apiResponse,
-		BaseURL:     os.Getenv("FRONTEND_WEBSITE_LINK"),
-		StatusText:  http.StatusText(apiResponse.StatusCode),
+		response:   apiResponse,
+		BaseURL:    os.Getenv("FRONTEND_WEBSITE_LINK"),
+		StatusText: http.StatusText(apiResponse.StatusCode),
 	}
 	if apiResponse.templateName == "" {
 		apiResponse.templateName = "default"
@@ -423,15 +422,15 @@ func (api *API) writeHTML(w http.ResponseWriter, apiResponse APIResponse) {
 	}
 }
 
-func badRequest(format string, a ...interface{}) APIResponse {
-	return APIResponse{
+func badRequest(format string, a ...interface{}) response {
+	return response{
 		StatusCode: http.StatusBadRequest,
 		Message:    fmt.Sprintf(format, a...),
 	}
 }
 
-func serverError(format string, a ...interface{}) APIResponse {
-	return APIResponse{
+func serverError(format string, a ...interface{}) response {
+	return response{
 		StatusCode: http.StatusInternalServerError,
 		Message:    fmt.Sprintf(format, a...),
 	}

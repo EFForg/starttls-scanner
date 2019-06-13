@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -37,14 +36,13 @@ func TestScanWriteHTML(t *testing.T) {
 		Timestamp: time.Now(),
 		Version:   1,
 	}
-	response := APIResponse{
+	response := response{
 		StatusCode:   http.StatusOK,
 		Response:     scan,
 		templateName: "scan",
 	}
 
 	w := httptest.NewRecorder()
-	fmt.Println(response.Response)
 	api.writeHTML(w, response)
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
@@ -79,7 +77,7 @@ func TestBasicScan(t *testing.T) {
 	// Checking response JSON returns successful scan
 	scanBody, _ := ioutil.ReadAll(resp.Body)
 	scan := models.Scan{}
-	err := json.Unmarshal(scanBody, &APIResponse{Response: &scan})
+	err := json.Unmarshal(scanBody, &response{Response: &scan})
 	if err != nil {
 		t.Errorf("Returned invalid JSON object:%v\n%v\n", string(scanBody), err)
 	}
@@ -99,7 +97,7 @@ func TestBasicScan(t *testing.T) {
 	// Checking response JSON returns scan associated with domain
 	scanBody, _ = ioutil.ReadAll(resp.Body)
 	scan2 := models.Scan{}
-	err = json.Unmarshal(scanBody, &APIResponse{Response: &scan2})
+	err = json.Unmarshal(scanBody, &response{Response: &scan2})
 	if err != nil {
 		t.Errorf("Returned invalid JSON object:%v\n", string(scanBody))
 	}
@@ -135,7 +133,7 @@ func TestScanCached(t *testing.T) {
 	scanBody, _ := ioutil.ReadAll(resp.Body)
 	scan := models.Scan{}
 	// Since scan occurred recently, we should have returned the cached OG response.
-	err := json.Unmarshal(scanBody, &APIResponse{Response: &scan})
+	err := json.Unmarshal(scanBody, &response{Response: &scan})
 	if err != nil {
 		t.Errorf("Returned invalid JSON object:%v\n%v\n", string(scanBody), err)
 	}
