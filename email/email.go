@@ -4,18 +4,19 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"net/smtp"
-	"os"
 	"strings"
 
 	"github.com/EFForg/starttls-backend/db"
 	"github.com/EFForg/starttls-backend/models"
 	"github.com/EFForg/starttls-backend/util"
-	raven "github.com/getsentry/raven-go"
 )
+
+type blacklistStore interface {
+	PutBlacklistedEmail(email string, reason string, timestamp string) error
+	IsBlacklistedEmail(string) (bool, error)
+}
 
 // EmailConfig contains
 // Configuration variables needed to submit emails for sending, as well as
@@ -28,7 +29,7 @@ type EmailConfig struct {
 	port               string
 	sender             string
 	website            string // Needed to generate email template text.
-	database           db.Database
+	database           blacklistStore
 }
 
 // MakeEmailConfigFromEnv initializes our email config object with
@@ -115,28 +116,16 @@ type Recipients []struct {
 	EmailAddress string `json:"emailAddress"`
 }
 
-type blacklistRequest struct {
-	reason     string
-	timestamp  string
-	recipients Recipients
-	raw        string
-}
-
-type ravenExtraContent string
-
-// Class satisfies raven's Interface interface so we can send this as extra context.
-// https://github.com/getsentry/raven-go/issues/125
-func (r ravenExtraContent) Class() string {
-	return "extra"
-}
-
-func (r ravenExtraContent) MarshalJSON() ([]byte, error) {
-	return []byte(r), nil
+type BlacklistRequest struct {
+	Reason     string
+	Timestamp  string
+	Recipients Recipients
+	Raw        string
 }
 
 // UnmarshallJSON wrangles the JSON posted by AWS SNS into something easier to access
 // and generalized across notification types.
-func (r *blacklistRequest) UnmarshalJSON(b []byte) error {
+func (r *BlacklistRequest) UnmarshalJSON(b []byte) error {
 	// We need to start by unmarshalling Message into a string because the field contains stringified JSON.
 	// See email_test.go for examples.
 	var wrapper struct {
@@ -172,50 +161,11 @@ func (r *blacklistRequest) UnmarshalJSON(b []byte) error {
 		return fmt.Errorf("failed to load notification message: %v", err)
 	}
 
-	*r = blacklistRequest{
-		raw:        wrapper.Message,
-		timestamp:  wrapper.Timestamp,
-		reason:     msg.NotificationType,
-		recipients: recipients,
+	*r = BlacklistRequest{
+		Raw:        wrapper.Message,
+		Timestamp:  wrapper.Timestamp,
+		Reason:     msg.NotificationType,
+		Recipients: recipients,
 	}
 	return nil
-}
-
-// HandleSESNotification handles AWS SES bounces and complaints submitted to a webhook
-// via AWS SNS (Simple Notification Service).
-// The SNS webhook is configured to include a secret API key stored in the environment.
-func HandleSESNotification(database db.Database) func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		keyParam := r.URL.Query()["amazon_authorize_key"]
-		if len(keyParam) == 0 || keyParam[0] != os.Getenv("AMAZON_AUTHORIZE_KEY") {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			raven.CaptureError(err, nil)
-			return
-		}
-
-		data := &blacklistRequest{}
-		err = json.Unmarshal(body, data)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			raven.CaptureError(err, nil, ravenExtraContent(body))
-			return
-		}
-
-		tags := map[string]string{"notification_type": data.reason}
-		raven.CaptureMessage("Received SES notification", tags, ravenExtraContent(data.raw))
-
-		for _, recipient := range data.recipients {
-			err = database.PutBlacklistedEmail(recipient.EmailAddress, data.reason, data.timestamp)
-			if err != nil {
-				raven.CaptureError(err, nil)
-			}
-		}
-
-		w.WriteHeader(http.StatusOK)
-	}
 }

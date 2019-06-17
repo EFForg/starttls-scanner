@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -19,7 +20,7 @@ import (
 	"github.com/EFForg/starttls-backend/models"
 	"github.com/EFForg/starttls-backend/policy"
 	"github.com/EFForg/starttls-backend/util"
-	"github.com/getsentry/raven-go"
+	raven "github.com/getsentry/raven-go"
 )
 
 ////////////////////////////////
@@ -105,7 +106,7 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 // RegisterHandlers binds API functions to the given http server,
 // and returns the resulting handler.
 func (api *API) RegisterHandlers(mux *http.ServeMux) http.Handler {
-	mux.HandleFunc("/sns", email.HandleSESNotification(api.Database))
+	mux.HandleFunc("/sns", HandleSESNotification(api.Database))
 	mux.HandleFunc("/api/scan", api.wrapper(api.scan))
 	mux.Handle("/api/queue",
 		throttleHandler(time.Hour, 20, http.HandlerFunc(api.wrapper(api.queue))))
@@ -434,5 +435,56 @@ func serverError(format string, a ...interface{}) response {
 	return response{
 		StatusCode: http.StatusInternalServerError,
 		Message:    fmt.Sprintf(format, a...),
+	}
+}
+
+type ravenExtraContent string
+
+// Class satisfies raven's Interface interface so we can send this as extra context.
+// https://github.com/getsentry/raven-go/issues/125
+func (r ravenExtraContent) Class() string {
+	return "extra"
+}
+
+func (r ravenExtraContent) MarshalJSON() ([]byte, error) {
+	return []byte(r), nil
+}
+
+// HandleSESNotification handles AWS SES bounces and complaints submitted to a webhook
+// via AWS SNS (Simple Notification Service).
+// The SNS webhook is configured to include a secret API key stored in the environment.
+func HandleSESNotification(database db.Database) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		keyParam := r.URL.Query()["amazon_authorize_key"]
+		if len(keyParam) == 0 || keyParam[0] != os.Getenv("AMAZON_AUTHORIZE_KEY") {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			raven.CaptureError(err, nil)
+			return
+		}
+
+		data := &email.BlacklistRequest{}
+		err = json.Unmarshal(body, data)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			raven.CaptureError(err, nil, ravenExtraContent(body))
+			return
+		}
+
+		tags := map[string]string{"notification_type": data.Reason}
+		raven.CaptureMessage("Received SES notification", tags, ravenExtraContent(data.Raw))
+
+		for _, recipient := range data.Recipients {
+			err = database.PutBlacklistedEmail(recipient.EmailAddress, data.Reason, data.Timestamp)
+			if err != nil {
+				raven.CaptureError(err, nil)
+			}
+		}
+
+		w.WriteHeader(http.StatusOK)
 	}
 }
