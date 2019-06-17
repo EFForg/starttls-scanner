@@ -105,6 +105,6 @@ func main() {
 		log.Println("[Starting queued validator]")
 		go validator.ValidateRegularly("Testing domains", db, 24*time.Hour)
 	}
-	go stats.ImportRegularly(db, time.Hour)
+	go stats.UpdateRegularly(db, time.Hour)
 	ServePublicEndpoints(&a, &cfg)
 }
