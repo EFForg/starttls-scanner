@@ -12,6 +12,7 @@ import (
 
 	"github.com/EFForg/starttls-backend/api"
 	"github.com/EFForg/starttls-backend/db"
+	"github.com/EFForg/starttls-backend/email"
 	"github.com/EFForg/starttls-backend/policy"
 	"github.com/EFForg/starttls-backend/stats"
 	"github.com/EFForg/starttls-backend/util"
@@ -84,7 +85,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	emailConfig, err := api.MakeEmailConfigFromEnv(db)
+	emailConfig, err := email.MakeEmailConfigFromEnv(db)
 	if err != nil {
 		log.Printf("couldn't connect to mailserver: %v", err)
 		log.Println("======NOT SENDING EMAIL======")

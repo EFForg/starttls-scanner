@@ -15,6 +15,7 @@ import (
 
 	"github.com/EFForg/starttls-backend/checker"
 	"github.com/EFForg/starttls-backend/db"
+	"github.com/EFForg/starttls-backend/email"
 	"github.com/EFForg/starttls-backend/models"
 	"github.com/EFForg/starttls-backend/policy"
 	"github.com/EFForg/starttls-backend/util"
@@ -104,7 +105,7 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 // RegisterHandlers binds API functions to the given http server,
 // and returns the resulting handler.
 func (api *API) RegisterHandlers(mux *http.ServeMux) http.Handler {
-	mux.HandleFunc("/sns", HandleSESNotification(api.Database))
+	mux.HandleFunc("/sns", email.HandleSESNotification(api.Database))
 	mux.HandleFunc("/api/scan", api.wrapper(api.scan))
 	mux.Handle("/api/queue",
 		throttleHandler(time.Hour, 20, http.HandlerFunc(api.wrapper(api.queue))))
@@ -213,7 +214,7 @@ func getDomainParams(r *http.Request) (models.Domain, error) {
 	if err == nil {
 		domain.Email = givenEmail
 	} else {
-		domain.Email = validationAddress(&domain)
+		domain.Email = email.ValidationAddress(&domain)
 	}
 	queueWeeks, err := getInt("weeks", r, 4, 52, 4)
 	if err != nil {
