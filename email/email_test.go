@@ -1,7 +1,6 @@
 package email
 
 import (
-	"encoding/json"
 	"os"
 	"strings"
 	"testing"
