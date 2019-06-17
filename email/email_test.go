@@ -61,7 +61,7 @@ func TestRequireEnvConfig(t *testing.T) {
 		requiredVars[varName] = os.Getenv(varName)
 		os.Setenv(varName, "")
 	}
-	_, err := MakeEmailConfigFromEnv(nil)
+	_, err := MakeConfigFromEnv(nil)
 	if err == nil {
 		t.Errorf("should have received multiple error from unset env vars")
 	}
@@ -76,7 +76,7 @@ func TestSendEmailToBlacklistedAddressFails(t *testing.T) {
 	if err != nil {
 		t.Errorf("PutBlacklistedEmail failed: %v\n", err)
 	}
-	c := &EmailConfig{database: mockStore}
+	c := &Config{database: mockStore}
 	err = c.sendEmail("Subject", "Body", "fail@example.com")
 	if err == nil || !strings.Contains(err.Error(), "blacklisted") {
 		t.Error("attempting to send mail to blacklisted address should fail")

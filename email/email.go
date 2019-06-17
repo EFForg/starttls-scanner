@@ -18,10 +18,9 @@ type blacklistStore interface {
 	IsBlacklistedEmail(string) (bool, error)
 }
 
-// EmailConfig contains
-// Configuration variables needed to submit emails for sending, as well as
+// Config stores variables needed to submit emails for sending, as well as
 // to generate the templates.
-type EmailConfig struct {
+type Config struct {
 	auth               smtp.Auth
 	username           string
 	password           string
@@ -32,12 +31,12 @@ type EmailConfig struct {
 	database           blacklistStore
 }
 
-// MakeEmailConfigFromEnv initializes our email config object with
+// MakeConfigFromEnv initializes our email config object with
 // environment variables.
-func MakeEmailConfigFromEnv(database db.Database) (EmailConfig, error) {
+func MakeConfigFromEnv(database db.Database) (Config, error) {
 	// create config
 	varErrs := util.Errors{}
-	c := EmailConfig{
+	c := Config{
 		username:           util.RequireEnv("SMTP_USERNAME", &varErrs),
 		password:           util.RequireEnv("SMTP_PASSWORD", &varErrs),
 		submissionHostname: util.RequireEnv("SMTP_ENDPOINT", &varErrs),
@@ -74,6 +73,7 @@ func MakeEmailConfigFromEnv(database db.Database) (EmailConfig, error) {
 	return c, nil
 }
 
+// ValidationAddress Returns default validation address for this domain submission.
 func ValidationAddress(domain *models.Domain) string {
 	return fmt.Sprintf("postmaster@%s", domain.Name)
 }
@@ -85,13 +85,13 @@ func validationEmailText(domain string, contactEmail string, hostnames []string,
 
 // SendValidation sends a validation e-mail for the domain outlined by domainInfo.
 // The validation link is generated using a token.
-func (c EmailConfig) SendValidation(domain *models.Domain, token string) error {
+func (c Config) SendValidation(domain *models.Domain, token string) error {
 	emailContent := validationEmailText(domain.Name, domain.Email, domain.MXs, token,
 		c.website)
 	return c.sendEmail(validationEmailSubject, emailContent, ValidationAddress(domain))
 }
 
-func (c EmailConfig) sendEmail(subject string, body string, address string) error {
+func (c Config) sendEmail(subject string, body string, address string) error {
 	blacklisted, err := c.database.IsBlacklistedEmail(address)
 	if err != nil {
 		return err
@@ -116,6 +116,7 @@ type Recipients []struct {
 	EmailAddress string `json:"emailAddress"`
 }
 
+// BlacklistRequest represents a submission for a particular email address to be blacklisted.
 type BlacklistRequest struct {
 	Reason     string
 	Timestamp  string
@@ -123,7 +124,7 @@ type BlacklistRequest struct {
 	Raw        string
 }
 
-// UnmarshallJSON wrangles the JSON posted by AWS SNS into something easier to access
+// UnmarshalJSON wrangles the JSON posted by AWS SNS into something easier to access
 // and generalized across notification types.
 func (r *BlacklistRequest) UnmarshalJSON(b []byte) error {
 	// We need to start by unmarshalling Message into a string because the field contains stringified JSON.

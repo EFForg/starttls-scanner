@@ -85,7 +85,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	emailConfig, err := email.MakeEmailConfigFromEnv(db)
+	emailConfig, err := email.MakeConfigFromEnv(db)
 	if err != nil {
 		log.Printf("couldn't connect to mailserver: %v", err)
 		log.Println("======NOT SENDING EMAIL======")
