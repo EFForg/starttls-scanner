@@ -1,6 +1,7 @@
 package validator
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -28,7 +29,7 @@ func reportToSentry(name string, domain string, result checker.DomainResult) {
 		result)
 }
 
-type checkPerformer func(string, []string) checker.DomainResult
+type checkPerformer func(context.Context, string, []string) checker.DomainResult
 type resultCallback func(string, string, checker.DomainResult)
 
 // Validator runs checks regularly against domain policies. This structure
@@ -51,14 +52,14 @@ type Validator struct {
 	checkPerformer checkPerformer
 }
 
-func (v *Validator) checkPolicy(domain string, hostnames []string) checker.DomainResult {
+func (v *Validator) checkPolicy(ctx context.Context, domain string, hostnames []string) checker.DomainResult {
 	if v.checkPerformer == nil {
 		c := checker.Checker{
 			Cache: checker.MakeSimpleCache(time.Hour),
 		}
 		v.checkPerformer = c.CheckDomain
 	}
-	return v.checkPerformer(domain, hostnames)
+	return v.checkPerformer(ctx, domain, hostnames)
 }
 
 func (v *Validator) interval() time.Duration {
@@ -81,30 +82,41 @@ func (v *Validator) policyPassed(name string, domain string, result checker.Doma
 	}
 }
 
-// Run starts the endless loop of validations. The first validation happens after the given
-// Interval. Validation failures induce `policyFailed`, and successes cause `policyPassed`.
-func (v *Validator) Run() {
-	for {
-		<-time.After(v.interval())
-		log.Printf("[%s validator] starting regular validation", v.Name)
-		domains, err := v.Store.DomainsToValidate()
+// Run performs a single validation.
+// Validation failures induce `policyFailed`, and successes cause `policyPassed`.
+func (v *Validator) runOnce(ctx context.Context) {
+	log.Printf("[%s validator] starting regular validation", v.Name)
+	domains, err := v.Store.DomainsToValidate()
+	if err != nil {
+		log.Printf("[%s validator] Could not retrieve domains: %v", v.Name, err)
+		return
+	}
+	for _, domain := range domains {
+		hostnames, err := v.Store.HostnamesForDomain(domain)
 		if err != nil {
-			log.Printf("[%s validator] Could not retrieve domains: %v", v.Name, err)
-			continue
+			log.Printf("[%s validator] Could not retrieve policy for domain %s: %v", v.Name, domain, err)
+			return
 		}
-		for _, domain := range domains {
-			hostnames, err := v.Store.HostnamesForDomain(domain)
-			if err != nil {
-				log.Printf("[%s validator] Could not retrieve policy for domain %s: %v", v.Name, domain, err)
-				continue
-			}
-			result := v.checkPolicy(domain, hostnames)
-			if result.Status != 0 {
-				log.Printf("[%s validator] %s failed; sending report", v.Name, domain)
-				v.policyFailed(v.Name, domain, result)
-			} else {
-				v.policyPassed(v.Name, domain, result)
-			}
+		result := v.checkPolicy(ctx, domain, hostnames)
+		if result.Status != 0 {
+			log.Printf("[%s validator] %s failed; sending report", v.Name, domain)
+			v.policyFailed(v.Name, domain, result)
+		} else {
+			v.policyPassed(v.Name, domain, result)
+		}
+	}
+}
+
+func (v *Validator) runLoop(ctx context.Context, exited chan struct{}) {
+	ticker := time.NewTicker(v.Interval)
+	for {
+		select {
+		case <-ticker.C:
+			v.runOnce(ctx)
+		case <-ctx.Done():
+			log.Printf("Shutting down %s validator...", v.Name)
+			exited <- struct{}{}
+			return
 		}
 	}
 }
@@ -112,11 +124,11 @@ func (v *Validator) Run() {
 // ValidateRegularly regularly runs checker.CheckDomain against a Domain-
 // Hostname map. Interval specifies the interval to wait between each run.
 // Failures are reported to Sentry.
-func ValidateRegularly(name string, store DomainPolicyStore, interval time.Duration) {
+func ValidateRegularly(ctx context.Context, exited chan struct{}, name string, store DomainPolicyStore, interval time.Duration) {
 	v := Validator{
 		Name:     name,
 		Store:    store,
 		Interval: interval,
 	}
-	v.Run()
+	v.runLoop(ctx, exited)
 }

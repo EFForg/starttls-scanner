@@ -1,6 +1,7 @@
 package validator
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -27,26 +28,30 @@ func noop(_ string, _ string, _ checker.DomainResult) {}
 
 func TestRegularValidationValidates(t *testing.T) {
 	called := make(chan bool)
-	fakeChecker := func(domain string, hostnames []string) checker.DomainResult {
+	fakeChecker := func(_ context.Context, _ string, _ []string) checker.DomainResult {
 		called <- true
 		return checker.DomainResult{}
 	}
 	mock := mockDomainPolicyStore{
 		hostnames: map[string][]string{"a": []string{"hostname"}}}
 	v := Validator{Store: mock, Interval: 100 * time.Millisecond, checkPerformer: fakeChecker, OnFailure: noop}
-	go v.Run()
+	ctx, cancel := context.WithCancel(context.Background())
+	exited := make(chan struct{})
+	go v.runLoop(ctx, exited)
 
 	select {
 	case <-called:
-		return
+		break
 	case <-time.After(time.Second):
 		t.Errorf("Checker wasn't called on hostname!")
 	}
+	cancel()
+	<-exited
 }
 
 func TestRegularValidationReportsErrors(t *testing.T) {
 	reports := make(chan string)
-	fakeChecker := func(domain string, hostnames []string) checker.DomainResult {
+	fakeChecker := func(_ context.Context, domain string, _ []string) checker.DomainResult {
 		if domain == "fail" || domain == "error" {
 			return checker.DomainResult{Status: 5}
 		}
@@ -67,15 +72,18 @@ func TestRegularValidationReportsErrors(t *testing.T) {
 	v := Validator{Store: mock, Interval: 100 * time.Millisecond, checkPerformer: fakeChecker,
 		OnFailure: fakeReporter, OnSuccess: fakeSuccessReporter,
 	}
-	go v.Run()
+	ctx, cancel := context.WithCancel(context.Background())
+	exited := make(chan struct{})
+	go v.runLoop(ctx, exited)
 	recvd := make(map[string]bool)
 	numRecvd := 0
-	for numRecvd < 4 {
+	for numRecvd < 6 {
 		select {
 		case report := <-successReports:
 			if report != "normal" {
 				t.Errorf("Didn't expect %s to succeed", report)
 			}
+			numRecvd++
 		case report := <-reports:
 			recvd[report] = true
 			numRecvd++
@@ -83,6 +91,8 @@ func TestRegularValidationReportsErrors(t *testing.T) {
 			t.Errorf("Timed out waiting for reports")
 		}
 	}
+	cancel()
+	<-exited
 	if _, ok := recvd["fail"]; !ok {
 		t.Errorf("Expected fail to be reported")
 	}
