@@ -46,12 +46,128 @@ The `main` and `db` packages contain integration tests that require a successful
 ### No-scan domains
 In case of complaints or abuse, we may not want to continually scan some domains. You can set the environment variable `DOMAIN_BLACKLIST` to point to a file with a list of newline-separated domains. Attempting to scan those domains from the public-facing website will result in error codes.
 
-## API
+## Scan API
 
+Our API objects can look a bit complicated! There's lots of information contained in a TLS scan.
 To request a scan:
 ```
 POST /api/scan
+  { "domain": "example.com" }
+```
+
+SLet's break down exactly what each part of this giant nested response means. All API responses, not just scans, are wrapped in a JSON, like:
+```
 {
-  "domain": "example.com"
+    status_code: 200,
+    message: "",
+    response: <reponse data>
 }
 ```
+Or even:
+```
+{
+    status_code: 400,
+    message: "query parameter domain not specified",
+    response: {}
+}
+```
+The status codes correspond with regular HTTP errors, and `message` provides more context into particular failures.
+
+### Scan responses
+
+Here's an abbreviated scan response. There's extra information on these objects that help
+describe the errors we encountered.
+```
+{
+    domain: "example.com",
+    scandata: {
+        status: 0,
+        results: {  // Individual hostname check results
+            "mx.example.com": {
+                "status": 0,
+                "checks": {
+                    "connectivity": { "status": 0 },
+                    "certificate": { "status": 0 },
+                    "starttls": { "status": 0 },
+                    "version": { "status": 0 },
+                }
+            }
+            "dummy.example.com": {
+                "status": 3,
+                "checks": {
+                    "connectivity": {
+                        "status": 3,
+                        "messages": [ "Error: Could not establish connection" ]
+                    },
+                }
+            },
+        },
+        preferred_hostnames: ["mx.example.com"], // Hostnames we were able to connect to
+        extra_results: {"policylist": { "status": 0 }},
+    },
+    timestamp: 0,
+    version: 1,
+}
+```
+
+The meat of the response is in scandata, which is a JSON-ification of the `DomainResult` structure returned from the `checker` package.
+
+### Domain results
+
+Here's a quick synopsis of the top-level fields:
+
+ - `domain`: the domain name that the scan was performed on.
+ - `status`: Whether the check succeeded overall, and some more specific common failure types. Types 4-6 are types of test failures that are particularly common.
+    - 0: Success, all TLS tests passed.
+    - 1: Warning, at least one TLS test produced a warning.
+    - 2: Failure, at least one TLS test failed.
+    - 3: Error, something went wrong during the test.
+    - 4: NoSTARTTLS, at least one of your mailboxes did not advertise STARTTLS.
+    - 5: CouldNotConnect, could not connect to any mailbox.
+    - 6: BadHostnameFailure, one of your mailbox's provided certificates didn't match its hostname.
+ - `message`: A more detailed description of the failure type.
+ - `preferred_hostnames`: A misnomer, but refers to mailboxes that passed the connectivity test.
+ - `mta_sts`: result for MTA STS check.
+ - `extra_results`: A map of other security checks for this domain.
+ - `results`: A map of mailbox hostnames to their individual results.
+
+### Hostname results
+
+Here's a sample, 
+```
+{
+    "status": 0,
+    "checks": {
+        "connectivity": { "status": 0 },
+        "certificate": {
+            "status": 2,
+            "messages": ["Hostname doesn't match any name in certificate",
+                         "Certificate root is not trusted"]
+        },
+        "starttls": { "status": 0 },
+        "version": { "status": 0 },
+    }
+}
+```
+
+ - `checks`: A result can have a suite of checks. `checks` is a map from a particular check name to its result.
+ - `status`: The status of a particular check, or the overall suite. Can be 0 through 3, which are `Success`, `Warning`, `Failure`, `Error`. The overall suite status takes the max status of all the sub-checks.
+ - `messages`: If status of a check isn't success, messages is where all warnings and failure messages go.
+
+### What do we scan for?
+
+Right now, these are the checks we perform.
+
+##### Hostname-level scans
+These scans are performed for every hostname-- that is, we try these things for every MX we find for the given domain.
+
+ * *Connectivity*: This one is performed first. It's common for mailservers to use dummy MX records as a spam-prevention tactic, so a hostname that fails to connect doesn't automatically fail the entire TLS scan, unless *no* hostnames succeed in connectivity.
+ * *STARTTLS*: The checker first connects to the mailbox and looks for a STARTTLS support banner. Then, we actively try to initiate a STARTTLS session.
+ * *Certificate*: The checker checks for certificate validity, which includes (1) chaining to a valid root in Mozilla's CA store, (2) the hostname matching the certificate, and (3) the certificate being not expired.
+ * *Version*: The checker checks your mailserver doesn't support SSL 2 or 3.
+
+##### Domain-level scans
+These scans are performed for the domain itself.
+
+ * *MTA-STS* We check to see whether your email domain follows the MTA-STS specification, and that the MTA-STS policy we find is valid.
+ * *Policy List* We check to see whether your email domain is on our policy list, or queued to be added.
