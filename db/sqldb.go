@@ -83,13 +83,13 @@ func (db *SQLDatabase) GetTokenByDomain(domain string) (string, error) {
 // PutToken generates and inserts a token into the database for a particular
 // domain, and returns the resulting token row.
 func (db *SQLDatabase) PutToken(domain string) (models.Token, error) {
-	tokenId, err := randToken()
+	tokenID, err := randToken()
 	if err != nil {
 		return models.Token{}, err
 	}
 	token := models.Token{
 		Domain:  domain,
-		Token:   tokenId,
+		Token:   tokenID,
 		Expires: time.Now().Add(time.Duration(time.Hour * 72)),
 		Used:    false,
 	}
