@@ -44,7 +44,7 @@ type checkPerformer func(API, string) (checker.DomainResult, error)
 // Any POST request accepts either URL query parameters or data value parameters,
 // and prefers the latter if both are present.
 type API struct {
-	Database            db.Database
+	Database            *db.SQLDatabase
 	checkDomainOverride checkPerformer
 	List                PolicyList
 	DontScan            map[string]bool
@@ -64,7 +64,7 @@ type PolicyList interface {
 type EmailSender interface {
 	// SendValidation sends a validation e-mail for a particular domain,
 	// with a particular validation token.
-	SendValidation(*models.Domain, string) error
+	SendValidation(*models.PolicySubmission, string) error
 }
 
 type response struct {
@@ -120,7 +120,7 @@ func (api *API) RegisterHandlers(mux *http.ServeMux) http.Handler {
 }
 
 func defaultCheck(api API, domain string) (checker.DomainResult, error) {
-	policyChan := models.Domain{Name: domain}.AsyncPolicyListCheck(api.Database, api.List)
+	policyChan := models.PolicySubmission{Name: domain}.AsyncPolicyListCheck(api.Database.PendingPolicies, api.Database.Policies, api.List)
 	c := checker.Checker{
 		Cache: &checker.ScanCache{
 			ScanStore:  api.Database,
@@ -201,32 +201,27 @@ func (api API) scan(r *http.Request) response {
 // MaxHostnames is the maximum number of hostnames that can be specified for a single domain's TLS policy.
 const MaxHostnames = 8
 
-// Extracts relevant parameters from http.Request for a POST to /api/queue
-// TODO: also validate hostnames as FQDNs.
-func getDomainParams(r *http.Request) (models.Domain, error) {
+// Extracts relevant parameters from http.Request for a POST to /api/queue into PolicySubmission
+// If MTASTS is set, doesn't try to extract hostnames. Otherwise, expects between 1 and MaxHostnames
+// valid hostnames to be given in |r|.
+func getDomainParams(r *http.Request) (models.PolicySubmission, error) {
 	name, err := getASCIIDomain(r)
 	if err != nil {
-		return models.Domain{}, err
+		return models.PolicySubmission{}, err
 	}
 	mtasts := r.FormValue("mta-sts")
-	domain := models.Domain{
+	domain := models.PolicySubmission{
 		Name:   name,
 		MTASTS: mtasts == "on",
-		State:  models.StateUnconfirmed,
 	}
 	givenEmail, err := getParam("email", r)
 	if err == nil {
 		domain.Email = givenEmail
 	} else {
-		domain.Email = email.ValidationAddress(&domain)
+		domain.Email = email.ValidationAddress(name)
 	}
-	queueWeeks, err := getInt("weeks", r, 4, 52, 4)
-	if err != nil {
-		return domain, err
-	}
-	domain.QueueWeeks = queueWeeks
-
-	if mtasts != "on" {
+	if !domain.MTASTS {
+		p := policy.TLSPolicy{Mode: "testing", MXs: make([]string, 0)}
 		for _, hostname := range r.PostForm["hostnames"] {
 			if len(hostname) == 0 {
 				continue
@@ -234,14 +229,15 @@ func getDomainParams(r *http.Request) (models.Domain, error) {
 			if !util.ValidDomainName(strings.TrimPrefix(hostname, ".")) {
 				return domain, fmt.Errorf("Hostname %s is invalid", hostname)
 			}
-			domain.MXs = append(domain.MXs, hostname)
+			p.MXs = append(p.MXs, hostname)
 		}
-		if len(domain.MXs) == 0 {
-			return domain, fmt.Errorf("No MX hostnames supplied for domain %s", domain.Name)
+		if len(p.MXs) == 0 {
+			return domain, fmt.Errorf("No MX hostnames supplied for domain %s", name)
 		}
-		if len(domain.MXs) > MaxHostnames {
+		if len(p.MXs) > MaxHostnames {
 			return domain, fmt.Errorf("No more than 8 MX hostnames are permitted")
 		}
+		domain.Policy = &p
 	}
 	return domain, nil
 }
@@ -251,7 +247,7 @@ func getDomainParams(r *http.Request) (models.Domain, error) {
 //        domain: Mail domain to queue a TLS policy for.
 //				mta_sts: "on" if domain supports MTA-STS, else "".
 //        hostnames: List of MX hostnames to put into this domain's TLS policy. Up to 8.
-//        Sets models.Domain object as response.
+//        Sets models.PolicySubmission object as response.
 //        weeks (optional, default 4): How many weeks is this domain queued for.
 //        email (optional): Contact email associated with domain.
 //   GET  /api/queue?domain=<domain>
@@ -263,12 +259,14 @@ func (api API) queue(r *http.Request) response {
 		if err != nil {
 			return badRequest(err.Error())
 		}
-		ok, msg, scan := domain.IsQueueable(api.Database, api.Database, api.List)
+		if !domain.CanUpdate(api.Database.Policies) {
+			return badRequest("existing submission can't be updated")
+		}
+		ok, msg := domain.HasValidScan(api.Database)
 		if !ok {
 			return badRequest(msg)
 		}
-		domain.PopulateFromScan(scan)
-		token, err := domain.InitializeWithToken(api.Database, api.Database)
+		token, err := domain.InitializeWithToken(api.Database.PendingPolicies, api.Database)
 		if err != nil {
 			return serverError(err.Error())
 		}
@@ -281,23 +279,8 @@ func (api API) queue(r *http.Request) response {
 			Response:   fmt.Sprintf("Thank you for submitting your domain. Please check postmaster@%s to validate that you control the domain.", domain.Name),
 		}
 	}
-	// GET: Retrieve domain status from queue
-	if r.Method == http.MethodGet {
-		domainName, err := getASCIIDomain(r)
-		if err != nil {
-			return badRequest(err.Error())
-		}
-		domainObj, err := models.GetDomain(api.Database, domainName)
-		if err != nil {
-			return response{StatusCode: http.StatusNotFound, Message: err.Error()}
-		}
-		return response{
-			StatusCode: http.StatusOK,
-			Response:   domainObj,
-		}
-	}
 	return response{StatusCode: http.StatusMethodNotAllowed,
-		Message: "/api/queue only accepts POST and GET requests"}
+		Message: "/api/queue only accepts POST requests"}
 }
 
 // Validate handles requests to /api/validate
@@ -314,7 +297,7 @@ func (api API) validate(r *http.Request) response {
 			Message: "/api/validate only accepts POST requests"}
 	}
 	tokenData := models.Token{Token: token}
-	domain, userErr, dbErr := tokenData.Redeem(api.Database, api.Database)
+	domain, userErr, dbErr := tokenData.Redeem(api.Database.PendingPolicies, api.Database.Policies, api.Database)
 	if userErr != nil {
 		return badRequest(userErr.Error())
 	}

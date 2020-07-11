@@ -15,9 +15,11 @@ const policyURL = "https://dl.eff.org/starttls-everywhere/policy.json"
 
 // TLSPolicy dictates the policy for a particular email domain.
 type TLSPolicy struct {
-	PolicyAlias string   `json:"policy-alias,omitempty"`
-	Mode        string   `json:"mode,omitempty"`
-	MXs         []string `json:"mxs,omitempty"`
+	PolicyAlias string `json:"policy-alias,omitempty"`
+	// Mode corresponds with MTA-STS modes: can be one of
+	// `enforce`, `testing`, or `none`.
+	Mode string   `json:"mode,omitempty"`
+	MXs  []string `json:"mxs,omitempty"`
 }
 
 // List is a raw representation of the policy list.
@@ -28,6 +30,31 @@ type List struct {
 	Author        string               `json:"author"`
 	PolicyAliases map[string]TLSPolicy `json:"policy-aliases"`
 	Policies      map[string]TLSPolicy `json:"policies"`
+}
+
+// Equals tests equality between this policy and another.
+func (p *TLSPolicy) Equals(other *TLSPolicy) bool {
+	if other == nil {
+		return false
+	}
+	return p.Mode == other.Mode && p.hostnamesEqual(other)
+}
+
+// Assumption: Every string is unique in the MXs list.
+func (p *TLSPolicy) hostnamesEqual(other *TLSPolicy) bool {
+	if len(p.MXs) != len(other.MXs) {
+		return false
+	}
+	set := make(map[string]bool)
+	for _, mx := range p.MXs {
+		set[mx] = true
+	}
+	for _, mx := range other.MXs {
+		if !set[mx] {
+			return false
+		}
+	}
+	return true
 }
 
 // Add adds a particular domain's policy to the list.

@@ -39,14 +39,6 @@ type Database interface {
 	PutLocalStats(time.Time) (checker.AggregatedScan, error)
 	// Gets counts per day of hosts supporting MTA-STS for a given source.
 	GetStats(string) (stats.Series, error)
-	// Upserts domain state.
-	PutDomain(models.Domain) error
-	// Retrieves state of a domain
-	GetDomain(string, models.DomainState) (models.Domain, error)
-	// Retrieves all domains in a particular state.
-	GetDomains(models.DomainState) ([]models.Domain, error)
-	SetStatus(string, models.DomainState) error
-	RemoveDomain(string, models.DomainState) (models.Domain, error)
 	ClearTables() error
 }
 
