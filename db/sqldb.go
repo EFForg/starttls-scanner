@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math/rand"
+	"crypto/rand"
 	"net/url"
 	"strings"
 	"time"
@@ -52,10 +52,13 @@ func InitSQLDatabase(cfg Config) (*SQLDatabase, error) {
 // TOKEN DB FUNCTIONS
 
 // randToken generates a random token.
-func randToken() string {
+func randToken() (string, error) {
 	b := make([]byte, 8)
-	rand.Read(b)
-	return fmt.Sprintf("%x", b)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", b), nil
 }
 
 // UseToken sets the `used` flag on a particular email validation token to
@@ -80,13 +83,17 @@ func (db *SQLDatabase) GetTokenByDomain(domain string) (string, error) {
 // PutToken generates and inserts a token into the database for a particular
 // domain, and returns the resulting token row.
 func (db *SQLDatabase) PutToken(domain string) (models.Token, error) {
+	tokenID, err := randToken()
+	if err != nil {
+		return models.Token{}, err
+	}
 	token := models.Token{
 		Domain:  domain,
-		Token:   randToken(),
+		Token:   tokenID,
 		Expires: time.Now().Add(time.Duration(time.Hour * 72)),
 		Used:    false,
 	}
-	_, err := db.conn.Exec("INSERT INTO tokens(domain, token, expires) VALUES($1, $2, $3) "+
+	_, err = db.conn.Exec("INSERT INTO tokens(domain, token, expires) VALUES($1, $2, $3) "+
 		"ON CONFLICT (domain) DO UPDATE SET token=$2, expires=$3, used=FALSE",
 		domain, token.Token, token.Expires.UTC().Format(sqlTimeFormat))
 	if err != nil {
